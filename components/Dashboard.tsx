@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { dataset } from "@/lib/data";
 import { diagnoseKpi } from "@/lib/diagnose";
-import { FiltersProvider, useFilters } from "@/lib/filters-context";
+import { useFilters } from "@/lib/filters-context";
 import { computeKpis } from "@/lib/kpis";
 import type { KpiId } from "@/lib/types";
 
@@ -82,7 +82,10 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
         </header>
 
         <div className="mb-5">
-          <FilterBar />
+          <FilterBar
+            actionHref="/analytics"
+            actionLabel="Analytics Dashboard →"
+          />
         </div>
 
         {!loaded ? (
@@ -143,9 +146,5 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
 }
 
 export function Dashboard({ qaConfigured }: { qaConfigured: boolean }) {
-  return (
-    <FiltersProvider>
-      <DashboardBody qaConfigured={qaConfigured} />
-    </FiltersProvider>
-  );
+  return <DashboardBody qaConfigured={qaConfigured} />;
 }

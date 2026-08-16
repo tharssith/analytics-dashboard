@@ -13,11 +13,12 @@ import {
   filterRecords,
   formatDateRange,
 } from "./data";
-import type { FilterState, HrRecord } from "./types";
+import type { DepartmentFilter, FilterState, HrRecord } from "./types";
 
 type FiltersContextValue = {
   filters: FilterState;
   setFilters: (next: FilterState) => void;
+  setDepartment: (department: DepartmentFilter) => void;
   records: HrRecord[];
   dateRangeLabel: string;
   departmentLabel: string;
@@ -33,6 +34,9 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     return {
       filters,
       setFilters,
+      setDepartment: (department: DepartmentFilter) => {
+        setFilters((current) => ({ ...current, department }));
+      },
       records,
       dateRangeLabel: formatDateRange(filters.startMonth, filters.endMonth),
       departmentLabel: filters.department,

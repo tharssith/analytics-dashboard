@@ -1,12 +1,26 @@
 "use client";
 
+import Link from "next/link";
+import { ArrowLeft, BarChart3, X } from "lucide-react";
 import { DEPARTMENTS, dataset, uniqueMonths } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
 import type { DepartmentFilter } from "@/lib/types";
 
-export function FilterBar() {
-  const { filters, setFilters } = useFilters();
+const selectClass =
+  "h-9 rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none transition-colors duration-150 focus:border-navy";
+
+export function FilterBar({
+  actionHref,
+  actionLabel,
+  actionIcon = "forward",
+}: {
+  actionHref: string;
+  actionLabel: string;
+  actionIcon?: "forward" | "back";
+}) {
+  const { filters, setFilters, setDepartment } = useFilters();
   const months = uniqueMonths();
+  const clickFiltered = filters.department !== "All";
 
   return (
     <div className="flex flex-wrap items-end gap-4">
@@ -23,7 +37,7 @@ export function FilterBar() {
                 startMonth > filters.endMonth ? startMonth : filters.endMonth,
             });
           }}
-          className="h-9 rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none focus:border-navy"
+          className={selectClass}
         >
           {months.map((month) => (
             <option key={month} value={month} disabled={month > filters.endMonth}>
@@ -46,7 +60,7 @@ export function FilterBar() {
                 endMonth < filters.startMonth ? endMonth : filters.startMonth,
             });
           }}
-          className="h-9 rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none focus:border-navy"
+          className={selectClass}
         >
           {months.map((month) => (
             <option key={month} value={month} disabled={month < filters.startMonth}>
@@ -61,12 +75,9 @@ export function FilterBar() {
         <select
           value={filters.department}
           onChange={(event) =>
-            setFilters({
-              ...filters,
-              department: event.target.value as DepartmentFilter,
-            })
+            setDepartment(event.target.value as DepartmentFilter)
           }
-          className="h-9 rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none focus:border-navy"
+          className={selectClass}
         >
           <option value="All">All</option>
           {DEPARTMENTS.map((department) => (
@@ -77,9 +88,33 @@ export function FilterBar() {
         </select>
       </label>
 
-      <p className="ml-auto text-xs text-muted">
-        {dataset.company.name} · {dataset.period.start} to {dataset.period.end}
-      </p>
+      {clickFiltered ? (
+        <button
+          type="button"
+          onClick={() => setDepartment("All")}
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-navy px-3 text-xs font-medium text-white transition-colors duration-150 hover:bg-navy/90"
+        >
+          Filtered: {filters.department}
+          <X size={14} strokeWidth={2} />
+        </button>
+      ) : null}
+
+      <div className="ml-auto flex flex-wrap items-center gap-3">
+        <Link
+          href={actionHref}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-foreground transition-colors duration-150 hover:border-navy/40 hover:bg-background/80"
+        >
+          {actionIcon === "back" ? (
+            <ArrowLeft size={16} className="text-navy" />
+          ) : (
+            <BarChart3 size={16} className="text-navy" />
+          )}
+          {actionLabel}
+        </Link>
+        <p className="text-xs text-muted">
+          {dataset.company.name} · {dataset.period.start} to {dataset.period.end}
+        </p>
+      </div>
     </div>
   );
 }

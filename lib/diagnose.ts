@@ -21,6 +21,20 @@ export const HEADCOUNT_RED_PCT = 10;
 export const OPEN_ON_TRACK_PCT = 5;
 export const OPEN_RED_PCT = 10;
 
+export const KPI_IDS: KpiId[] = [
+  "headcount",
+  "attrition",
+  "timeToHire",
+  "openPositions",
+];
+
+export const KPI_TITLES: Record<KpiId, string> = {
+  headcount: "Headcount vs target",
+  attrition: "Attrition vs threshold",
+  timeToHire: "Time-to-hire vs threshold",
+  openPositions: "Open roles vs target",
+};
+
 export type DiagnoseBar = {
   department: Department;
   value: number;
