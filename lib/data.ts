@@ -12,6 +12,13 @@ export { DEPARTMENTS };
 
 export const dataset = raw as HrDataset;
 
+export function cloneRecords(records: HrRecord[] = dataset.records): HrRecord[] {
+  return records.map((record) => ({
+    ...record,
+    source_of_hire: { ...record.source_of_hire },
+  }));
+}
+
 export function uniqueMonths(records: HrRecord[] = dataset.records): string[] {
   return [...new Set(records.map((record) => record.month))].sort();
 }

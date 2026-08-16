@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
+import { Pencil } from "lucide-react";
 import { DepartmentBreakdownChart } from "@/components/diagnose/DiagnosePanel";
-import { FilterBar } from "@/components/filters/FilterBar";
+import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
 import { dataset, filterRecords } from "@/lib/data";
 import {
@@ -14,15 +16,15 @@ import { useFilters } from "@/lib/filters-context";
 import type { Department } from "@/lib/types";
 
 export function AnalyticsDashboard() {
-  const { filters, records, setDepartment } = useFilters();
+  const { filters, records, sourceRecords, setDepartment } = useFilters();
 
   const allDepartmentRecords = useMemo(
     () =>
-      filterRecords(dataset.records, {
+      filterRecords(sourceRecords, {
         ...filters,
         department: "All",
       }),
-    [filters],
+    [filters, sourceRecords],
   );
 
   const cards = useMemo(
@@ -60,6 +62,12 @@ export function AnalyticsDashboard() {
           actionHref="/"
           actionLabel="← Back to Dashboard"
           actionIcon="back"
+          extraActions={
+            <Link href="/analytics/edit" className={toolbarButtonClass}>
+              <Pencil size={16} className="text-navy" />
+              Edit Data
+            </Link>
+          }
         />
       </div>
 
@@ -67,7 +75,7 @@ export function AnalyticsDashboard() {
         {cards.map((card) => {
           if (!card.filtered || !card.breakdown) return null;
           return (
-            <Card key={card.id} className="col-span-12 p-5 lg:col-span-6">
+            <Card key={card.id} className="col-span-12 min-w-0 p-5 lg:col-span-6">
               <div className="mb-4">
                 <h2 className="text-sm font-semibold text-foreground">
                   {card.title}

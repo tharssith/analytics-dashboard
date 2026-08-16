@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { ArrowLeft, BarChart3, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { DEPARTMENTS, dataset, uniqueMonths } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
 import type { DepartmentFilter } from "@/lib/types";
+
+export const toolbarButtonClass =
+  "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-foreground transition-colors duration-150 hover:border-navy/40 hover:bg-background/80";
 
 const selectClass =
   "h-9 rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none transition-colors duration-150 focus:border-navy";
@@ -13,13 +17,15 @@ export function FilterBar({
   actionHref,
   actionLabel,
   actionIcon = "forward",
+  extraActions,
 }: {
   actionHref: string;
   actionLabel: string;
   actionIcon?: "forward" | "back";
+  extraActions?: ReactNode;
 }) {
-  const { filters, setFilters, setDepartment } = useFilters();
-  const months = uniqueMonths();
+  const { filters, setFilters, setDepartment, sourceRecords } = useFilters();
+  const months = uniqueMonths(sourceRecords);
   const clickFiltered = filters.department !== "All";
 
   return (
@@ -100,10 +106,7 @@ export function FilterBar({
       ) : null}
 
       <div className="ml-auto flex flex-wrap items-center gap-3">
-        <Link
-          href={actionHref}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-foreground transition-colors duration-150 hover:border-navy/40 hover:bg-background/80"
-        >
+        <Link href={actionHref} className={toolbarButtonClass}>
           {actionIcon === "back" ? (
             <ArrowLeft size={16} className="text-navy" />
           ) : (
@@ -111,6 +114,7 @@ export function FilterBar({
           )}
           {actionLabel}
         </Link>
+        {extraActions}
         <p className="text-xs text-muted">
           {dataset.company.name} · {dataset.period.start} to {dataset.period.end}
         </p>

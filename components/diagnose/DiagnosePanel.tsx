@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import type { DiagnoseModel } from "@/lib/diagnose";
+import { DEPARTMENTS } from "@/lib/types";
 import type { Department, DepartmentFilter, RagStatus } from "@/lib/types";
 
 const FILL: Record<RagStatus | "neutral", string> = {
@@ -30,6 +31,51 @@ const FILL_SELECTED: Record<RagStatus | "neutral", string> = {
 
 const NAVY = "#1B365D";
 
+function isDepartment(value: unknown): value is Department {
+  return DEPARTMENTS.includes(value as Department);
+}
+
+function departmentFromChartEvent(data: unknown): Department | null {
+  if (!data || typeof data !== "object") return null;
+  const row = data as {
+    activeLabel?: unknown;
+    payload?: { department?: unknown } | Array<{ payload?: { department?: unknown } }>;
+    department?: unknown;
+  };
+  if (isDepartment(row.activeLabel)) return row.activeLabel;
+  if (isDepartment(row.department)) return row.department;
+  if (row.payload && !Array.isArray(row.payload) && isDepartment(row.payload.department)) {
+    return row.payload.department;
+  }
+  if (Array.isArray(row.payload)) {
+    const nested = row.payload[0]?.payload?.department;
+    if (isDepartment(nested)) return nested;
+  }
+  return null;
+}
+
+class ChartBoundary extends Component<
+  { children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="flex h-52 items-center justify-center text-xs text-muted">
+          Chart could not render. Use the department dropdown to filter.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function DepartmentBreakdownChart({
   model,
   selectedDepartment = "All",
@@ -41,78 +87,103 @@ export function DepartmentBreakdownChart({
 }) {
   const interactive = Boolean(onDepartmentClick);
   const [hovered, setHovered] = useState<Department | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  function selectDepartment(department: Department) {
+    onDepartmentClick?.(department);
+  }
+
+  if (!mounted) {
+    return <div className="h-52 w-full rounded-md bg-background" />;
+  }
 
   return (
-    <div className="h-52">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={model.bars}
-          margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
-        >
-          <CartesianGrid stroke="#E2E8F0" vertical={false} />
-          <XAxis
-            dataKey="department"
-            tick={{ fill: "#64748B", fontSize: 12 }}
-            axisLine={{ stroke: "#E2E8F0" }}
-            tickLine={false}
-          />
-          <YAxis
-            tick={{ fill: "#64748B", fontSize: 12 }}
-            axisLine={false}
-            tickLine={false}
-            width={40}
-          />
-          <Tooltip
-            cursor={{ fill: "rgba(27, 54, 93, 0.06)" }}
-            contentStyle={{
-              border: "1px solid #E2E8F0",
-              borderRadius: 8,
-              fontSize: 12,
+    <ChartBoundary>
+      <div className="h-52 w-full min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <BarChart
+            data={model.bars}
+            margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+            onClick={(state) => {
+              if (!interactive) return;
+              const department = departmentFromChartEvent(state);
+              if (department) selectDepartment(department);
             }}
-            formatter={(value) => [
-              typeof value === "number"
-                ? value.toLocaleString("en-US", {
-                    maximumFractionDigits: 1,
-                  })
-                : value,
-              model.barLabel,
-            ]}
-          />
-          <Bar
-            dataKey="value"
-            radius={[4, 4, 0, 0]}
-            maxBarSize={48}
-            cursor={interactive ? "pointer" : "default"}
-            onClick={(data) => {
-              const department = (data?.payload as { department?: Department } | undefined)
-                ?.department;
-              if (department && onDepartmentClick) onDepartmentClick(department);
-            }}
-            onMouseLeave={() => setHovered(null)}
           >
-            {model.bars.map((bar) => {
-              const selected = selectedDepartment === bar.department;
-              const isHovered = interactive && hovered === bar.department;
-              return (
-                <Cell
-                  key={bar.department}
-                  fill={
-                    selected || isHovered
-                      ? FILL_SELECTED[bar.status]
-                      : FILL[bar.status]
-                  }
-                  stroke={selected ? NAVY : "transparent"}
-                  strokeWidth={selected ? 1.5 : 0}
-                  onMouseEnter={() => {
-                    if (interactive) setHovered(bar.department);
-                  }}
-                />
-              );
-            })}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+            <CartesianGrid stroke="#E2E8F0" vertical={false} />
+            <XAxis
+              dataKey="department"
+              tick={{ fill: "#64748B", fontSize: 12 }}
+              axisLine={{ stroke: "#E2E8F0" }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fill: "#64748B", fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              width={40}
+            />
+            <Tooltip
+              cursor={{ fill: "rgba(27, 54, 93, 0.06)" }}
+              contentStyle={{
+                border: "1px solid #E2E8F0",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+              formatter={(value) => [
+                typeof value === "number"
+                  ? value.toLocaleString("en-US", {
+                      maximumFractionDigits: 1,
+                    })
+                  : value,
+                model.barLabel,
+              ]}
+            />
+            <Bar
+              dataKey="value"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={48}
+              cursor={interactive ? "pointer" : "default"}
+              onClick={(data) => {
+                if (!interactive) return;
+                const department = departmentFromChartEvent(data);
+                if (department) selectDepartment(department);
+              }}
+              onMouseLeave={() => setHovered(null)}
+            >
+              {model.bars.map((bar) => {
+                const selected = selectedDepartment === bar.department;
+                const isHovered = interactive && hovered === bar.department;
+                return (
+                  <Cell
+                    key={bar.department}
+                    cursor={interactive ? "pointer" : "default"}
+                    fill={
+                      selected || isHovered
+                        ? FILL_SELECTED[bar.status]
+                        : FILL[bar.status]
+                    }
+                    stroke={selected ? NAVY : "transparent"}
+                    strokeWidth={selected ? 1.5 : 0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (interactive) selectDepartment(bar.department);
+                    }}
+                    onMouseEnter={() => {
+                      if (interactive) setHovered(bar.department);
+                    }}
+                  />
+                );
+              })}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartBoundary>
   );
 }
 
