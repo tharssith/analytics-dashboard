@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #1e293b;
+  --navy: #1b365d;
+  --border: #e2e8f0;
+  --muted: #64748b;
+  --card: #ffffff;
+  --rag-green: #5b8a72;
+  --rag-green-bg: #e8f1eb;
+  --rag-amber: #c4923a;
+  --rag-amber-bg: #f8f0e3;
+  --rag-red: #c45c5c;
+  --rag-red-bg: #f6e8e8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-navy: var(--navy);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-rag-green: var(--rag-green);
+  --color-rag-green-bg: var(--rag-green-bg);
+  --color-rag-amber: var(--rag-amber);
+  --color-rag-amber-bg: var(--rag-amber-bg);
+  --color-rag-red: var(--rag-red);
+  --color-rag-red-bg: var(--rag-red-bg);
+  --font-sans: var(--font-inter);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}

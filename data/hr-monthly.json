@@ -1,0 +1,1357 @@
+{
+  "company": {
+    "name": "Northstar Financial",
+    "industry": "Financial services",
+    "hq": "Chicago, IL"
+  },
+  "period": {
+    "start": "2024-09",
+    "end": "2026-08"
+  },
+  "records": [
+    {
+      "month": "2024-09",
+      "department": "Engineering",
+      "headcount": 172,
+      "target_headcount": 178,
+      "new_hires": 4,
+      "attrition_count": 2,
+      "time_to_hire_days": 33,
+      "source_of_hire": {
+        "referral_pct": 26,
+        "job_board_pct": 34,
+        "agency_pct": 40
+      }
+    },
+    {
+      "month": "2024-09",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 44,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 33,
+        "job_board_pct": 38,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2024-09",
+      "department": "Sales",
+      "headcount": 89,
+      "target_headcount": 98,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 55,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 37,
+        "agency_pct": 40
+      }
+    },
+    {
+      "month": "2024-09",
+      "department": "Support",
+      "headcount": 70,
+      "target_headcount": 70,
+      "new_hires": 2,
+      "attrition_count": 0,
+      "time_to_hire_days": 23,
+      "source_of_hire": {
+        "referral_pct": 61,
+        "job_board_pct": 31,
+        "agency_pct": 8
+      }
+    },
+    {
+      "month": "2024-10",
+      "department": "Engineering",
+      "headcount": 173,
+      "target_headcount": 180,
+      "new_hires": 3,
+      "attrition_count": 2,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 30,
+        "job_board_pct": 34,
+        "agency_pct": 36
+      }
+    },
+    {
+      "month": "2024-10",
+      "department": "Marketing",
+      "headcount": 40,
+      "target_headcount": 44,
+      "new_hires": 0,
+      "attrition_count": 1,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 39,
+        "job_board_pct": 33,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2024-10",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 99,
+      "new_hires": 3,
+      "attrition_count": 1,
+      "time_to_hire_days": 63,
+      "source_of_hire": {
+        "referral_pct": 20,
+        "job_board_pct": 38,
+        "agency_pct": 42
+      }
+    },
+    {
+      "month": "2024-10",
+      "department": "Support",
+      "headcount": 71,
+      "target_headcount": 70,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 21,
+      "source_of_hire": {
+        "referral_pct": 53,
+        "job_board_pct": 34,
+        "agency_pct": 13
+      }
+    },
+    {
+      "month": "2024-11",
+      "department": "Engineering",
+      "headcount": 175,
+      "target_headcount": 182,
+      "new_hires": 4,
+      "attrition_count": 2,
+      "time_to_hire_days": 32,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 38,
+        "agency_pct": 38
+      }
+    },
+    {
+      "month": "2024-11",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 45,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 40,
+        "job_board_pct": 29,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2024-11",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 100,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 54,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 25,
+        "agency_pct": 50
+      }
+    },
+    {
+      "month": "2024-11",
+      "department": "Support",
+      "headcount": 72,
+      "target_headcount": 71,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 21,
+      "source_of_hire": {
+        "referral_pct": 58,
+        "job_board_pct": 31,
+        "agency_pct": 11
+      }
+    },
+    {
+      "month": "2024-12",
+      "department": "Engineering",
+      "headcount": 177,
+      "target_headcount": 185,
+      "new_hires": 4,
+      "attrition_count": 2,
+      "time_to_hire_days": 32,
+      "source_of_hire": {
+        "referral_pct": 22,
+        "job_board_pct": 48,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2024-12",
+      "department": "Marketing",
+      "headcount": 40,
+      "target_headcount": 45,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 34,
+      "source_of_hire": {
+        "referral_pct": 43,
+        "job_board_pct": 26,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2024-12",
+      "department": "Sales",
+      "headcount": 93,
+      "target_headcount": 101,
+      "new_hires": 3,
+      "attrition_count": 1,
+      "time_to_hire_days": 59,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 28,
+        "agency_pct": 49
+      }
+    },
+    {
+      "month": "2024-12",
+      "department": "Support",
+      "headcount": 72,
+      "target_headcount": 71,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 59,
+        "job_board_pct": 29,
+        "agency_pct": 12
+      }
+    },
+    {
+      "month": "2025-01",
+      "department": "Engineering",
+      "headcount": 179,
+      "target_headcount": 187,
+      "new_hires": 4,
+      "attrition_count": 2,
+      "time_to_hire_days": 33,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 42,
+        "agency_pct": 33
+      }
+    },
+    {
+      "month": "2025-01",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 45,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 32,
+      "source_of_hire": {
+        "referral_pct": 40,
+        "job_board_pct": 28,
+        "agency_pct": 32
+      }
+    },
+    {
+      "month": "2025-01",
+      "department": "Sales",
+      "headcount": 93,
+      "target_headcount": 101,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 50,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 29,
+        "agency_pct": 48
+      }
+    },
+    {
+      "month": "2025-01",
+      "department": "Support",
+      "headcount": 72,
+      "target_headcount": 71,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 24,
+      "source_of_hire": {
+        "referral_pct": 55,
+        "job_board_pct": 31,
+        "agency_pct": 14
+      }
+    },
+    {
+      "month": "2025-02",
+      "department": "Engineering",
+      "headcount": 180,
+      "target_headcount": 189,
+      "new_hires": 4,
+      "attrition_count": 3,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 27,
+        "job_board_pct": 33,
+        "agency_pct": 40
+      }
+    },
+    {
+      "month": "2025-02",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 46,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 39,
+        "job_board_pct": 31,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2025-02",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 102,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 57,
+      "source_of_hire": {
+        "referral_pct": 21,
+        "job_board_pct": 36,
+        "agency_pct": 43
+      }
+    },
+    {
+      "month": "2025-02",
+      "department": "Support",
+      "headcount": 72,
+      "target_headcount": 71,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 58,
+        "job_board_pct": 28,
+        "agency_pct": 14
+      }
+    },
+    {
+      "month": "2025-03",
+      "department": "Engineering",
+      "headcount": 180,
+      "target_headcount": 191,
+      "new_hires": 4,
+      "attrition_count": 4,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 31,
+        "job_board_pct": 40,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2025-03",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 46,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 33,
+      "source_of_hire": {
+        "referral_pct": 33,
+        "job_board_pct": 41,
+        "agency_pct": 26
+      }
+    },
+    {
+      "month": "2025-03",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 103,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 58,
+      "source_of_hire": {
+        "referral_pct": 20,
+        "job_board_pct": 36,
+        "agency_pct": 44
+      }
+    },
+    {
+      "month": "2025-03",
+      "department": "Support",
+      "headcount": 72,
+      "target_headcount": 72,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 20,
+      "source_of_hire": {
+        "referral_pct": 55,
+        "job_board_pct": 31,
+        "agency_pct": 14
+      }
+    },
+    {
+      "month": "2025-04",
+      "department": "Engineering",
+      "headcount": 182,
+      "target_headcount": 193,
+      "new_hires": 5,
+      "attrition_count": 3,
+      "time_to_hire_days": 39,
+      "source_of_hire": {
+        "referral_pct": 26,
+        "job_board_pct": 43,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2025-04",
+      "department": "Marketing",
+      "headcount": 39,
+      "target_headcount": 46,
+      "new_hires": 0,
+      "attrition_count": 2,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 34,
+        "job_board_pct": 43,
+        "agency_pct": 23
+      }
+    },
+    {
+      "month": "2025-04",
+      "department": "Sales",
+      "headcount": 90,
+      "target_headcount": 104,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 55,
+      "source_of_hire": {
+        "referral_pct": 22,
+        "job_board_pct": 33,
+        "agency_pct": 45
+      }
+    },
+    {
+      "month": "2025-04",
+      "department": "Support",
+      "headcount": 73,
+      "target_headcount": 72,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 21,
+      "source_of_hire": {
+        "referral_pct": 57,
+        "job_board_pct": 32,
+        "agency_pct": 11
+      }
+    },
+    {
+      "month": "2025-05",
+      "department": "Engineering",
+      "headcount": 183,
+      "target_headcount": 195,
+      "new_hires": 4,
+      "attrition_count": 3,
+      "time_to_hire_days": 40,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 44,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2025-05",
+      "department": "Marketing",
+      "headcount": 40,
+      "target_headcount": 47,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 36,
+      "source_of_hire": {
+        "referral_pct": 43,
+        "job_board_pct": 29,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2025-05",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 105,
+      "new_hires": 3,
+      "attrition_count": 1,
+      "time_to_hire_days": 52,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 33,
+        "agency_pct": 44
+      }
+    },
+    {
+      "month": "2025-05",
+      "department": "Support",
+      "headcount": 74,
+      "target_headcount": 72,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 24,
+      "source_of_hire": {
+        "referral_pct": 62,
+        "job_board_pct": 23,
+        "agency_pct": 15
+      }
+    },
+    {
+      "month": "2025-06",
+      "department": "Engineering",
+      "headcount": 183,
+      "target_headcount": 198,
+      "new_hires": 4,
+      "attrition_count": 4,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 44,
+        "agency_pct": 33
+      }
+    },
+    {
+      "month": "2025-06",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 47,
+      "new_hires": 2,
+      "attrition_count": 1,
+      "time_to_hire_days": 32,
+      "source_of_hire": {
+        "referral_pct": 42,
+        "job_board_pct": 29,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2025-06",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 106,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 54,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 36,
+        "agency_pct": 40
+      }
+    },
+    {
+      "month": "2025-06",
+      "department": "Support",
+      "headcount": 74,
+      "target_headcount": 72,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 25,
+      "source_of_hire": {
+        "referral_pct": 59,
+        "job_board_pct": 29,
+        "agency_pct": 12
+      }
+    },
+    {
+      "month": "2025-07",
+      "department": "Engineering",
+      "headcount": 184,
+      "target_headcount": 200,
+      "new_hires": 4,
+      "attrition_count": 3,
+      "time_to_hire_days": 36,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 48,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2025-07",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 47,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 30,
+      "source_of_hire": {
+        "referral_pct": 38,
+        "job_board_pct": 37,
+        "agency_pct": 25
+      }
+    },
+    {
+      "month": "2025-07",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 107,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 55,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 32,
+        "agency_pct": 45
+      }
+    },
+    {
+      "month": "2025-07",
+      "department": "Support",
+      "headcount": 74,
+      "target_headcount": 73,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 18,
+      "source_of_hire": {
+        "referral_pct": 61,
+        "job_board_pct": 24,
+        "agency_pct": 15
+      }
+    },
+    {
+      "month": "2025-08",
+      "department": "Engineering",
+      "headcount": 185,
+      "target_headcount": 202,
+      "new_hires": 4,
+      "attrition_count": 3,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 45,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2025-08",
+      "department": "Marketing",
+      "headcount": 39,
+      "target_headcount": 48,
+      "new_hires": 0,
+      "attrition_count": 2,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 33,
+        "job_board_pct": 42,
+        "agency_pct": 25
+      }
+    },
+    {
+      "month": "2025-08",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 108,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 51,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 36,
+        "agency_pct": 39
+      }
+    },
+    {
+      "month": "2025-08",
+      "department": "Support",
+      "headcount": 74,
+      "target_headcount": 73,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 54,
+        "job_board_pct": 37,
+        "agency_pct": 9
+      }
+    },
+    {
+      "month": "2025-09",
+      "department": "Engineering",
+      "headcount": 186,
+      "target_headcount": 204,
+      "new_hires": 5,
+      "attrition_count": 4,
+      "time_to_hire_days": 40,
+      "source_of_hire": {
+        "referral_pct": 27,
+        "job_board_pct": 38,
+        "agency_pct": 35
+      }
+    },
+    {
+      "month": "2025-09",
+      "department": "Marketing",
+      "headcount": 38,
+      "target_headcount": 48,
+      "new_hires": 0,
+      "attrition_count": 1,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 40,
+        "job_board_pct": 32,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2025-09",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 108,
+      "new_hires": 3,
+      "attrition_count": 2,
+      "time_to_hire_days": 59,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 34,
+        "agency_pct": 41
+      }
+    },
+    {
+      "month": "2025-09",
+      "department": "Support",
+      "headcount": 75,
+      "target_headcount": 73,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 20,
+      "source_of_hire": {
+        "referral_pct": 59,
+        "job_board_pct": 31,
+        "agency_pct": 10
+      }
+    },
+    {
+      "month": "2025-10",
+      "department": "Engineering",
+      "headcount": 188,
+      "target_headcount": 206,
+      "new_hires": 5,
+      "attrition_count": 3,
+      "time_to_hire_days": 40,
+      "source_of_hire": {
+        "referral_pct": 31,
+        "job_board_pct": 29,
+        "agency_pct": 40
+      }
+    },
+    {
+      "month": "2025-10",
+      "department": "Marketing",
+      "headcount": 38,
+      "target_headcount": 49,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 39,
+      "source_of_hire": {
+        "referral_pct": 35,
+        "job_board_pct": 34,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2025-10",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 109,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 60,
+      "source_of_hire": {
+        "referral_pct": 22,
+        "job_board_pct": 29,
+        "agency_pct": 49
+      }
+    },
+    {
+      "month": "2025-10",
+      "department": "Support",
+      "headcount": 76,
+      "target_headcount": 73,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 24,
+      "source_of_hire": {
+        "referral_pct": 55,
+        "job_board_pct": 37,
+        "agency_pct": 8
+      }
+    },
+    {
+      "month": "2025-11",
+      "department": "Engineering",
+      "headcount": 189,
+      "target_headcount": 208,
+      "new_hires": 5,
+      "attrition_count": 4,
+      "time_to_hire_days": 36,
+      "source_of_hire": {
+        "referral_pct": 27,
+        "job_board_pct": 41,
+        "agency_pct": 32
+      }
+    },
+    {
+      "month": "2025-11",
+      "department": "Marketing",
+      "headcount": 39,
+      "target_headcount": 49,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 37,
+      "source_of_hire": {
+        "referral_pct": 36,
+        "job_board_pct": 34,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2025-11",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 110,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 59,
+      "source_of_hire": {
+        "referral_pct": 21,
+        "job_board_pct": 33,
+        "agency_pct": 46
+      }
+    },
+    {
+      "month": "2025-11",
+      "department": "Support",
+      "headcount": 76,
+      "target_headcount": 74,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 55,
+        "job_board_pct": 29,
+        "agency_pct": 16
+      }
+    },
+    {
+      "month": "2025-12",
+      "department": "Engineering",
+      "headcount": 189,
+      "target_headcount": 211,
+      "new_hires": 5,
+      "attrition_count": 5,
+      "time_to_hire_days": 38,
+      "source_of_hire": {
+        "referral_pct": 29,
+        "job_board_pct": 41,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2025-12",
+      "department": "Marketing",
+      "headcount": 37,
+      "target_headcount": 49,
+      "new_hires": 0,
+      "attrition_count": 2,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 44,
+        "job_board_pct": 27,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2025-12",
+      "department": "Sales",
+      "headcount": 93,
+      "target_headcount": 111,
+      "new_hires": 3,
+      "attrition_count": 2,
+      "time_to_hire_days": 56,
+      "source_of_hire": {
+        "referral_pct": 20,
+        "job_board_pct": 41,
+        "agency_pct": 39
+      }
+    },
+    {
+      "month": "2025-12",
+      "department": "Support",
+      "headcount": 75,
+      "target_headcount": 74,
+      "new_hires": 0,
+      "attrition_count": 1,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 53,
+        "job_board_pct": 37,
+        "agency_pct": 10
+      }
+    },
+    {
+      "month": "2026-01",
+      "department": "Engineering",
+      "headcount": 190,
+      "target_headcount": 213,
+      "new_hires": 5,
+      "attrition_count": 4,
+      "time_to_hire_days": 37,
+      "source_of_hire": {
+        "referral_pct": 29,
+        "job_board_pct": 32,
+        "agency_pct": 39
+      }
+    },
+    {
+      "month": "2026-01",
+      "department": "Marketing",
+      "headcount": 37,
+      "target_headcount": 50,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 41,
+        "job_board_pct": 28,
+        "agency_pct": 31
+      }
+    },
+    {
+      "month": "2026-01",
+      "department": "Sales",
+      "headcount": 93,
+      "target_headcount": 112,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 58,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 27,
+        "agency_pct": 49
+      }
+    },
+    {
+      "month": "2026-01",
+      "department": "Support",
+      "headcount": 75,
+      "target_headcount": 74,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 53,
+        "job_board_pct": 32,
+        "agency_pct": 15
+      }
+    },
+    {
+      "month": "2026-02",
+      "department": "Engineering",
+      "headcount": 191,
+      "target_headcount": 215,
+      "new_hires": 5,
+      "attrition_count": 4,
+      "time_to_hire_days": 39,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 47,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2026-02",
+      "department": "Marketing",
+      "headcount": 39,
+      "target_headcount": 50,
+      "new_hires": 2,
+      "attrition_count": 0,
+      "time_to_hire_days": 37,
+      "source_of_hire": {
+        "referral_pct": 33,
+        "job_board_pct": 37,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2026-02",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 113,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 61,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 33,
+        "agency_pct": 42
+      }
+    },
+    {
+      "month": "2026-02",
+      "department": "Support",
+      "headcount": 76,
+      "target_headcount": 74,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 25,
+      "source_of_hire": {
+        "referral_pct": 53,
+        "job_board_pct": 36,
+        "agency_pct": 11
+      }
+    },
+    {
+      "month": "2026-03",
+      "department": "Engineering",
+      "headcount": 192,
+      "target_headcount": 217,
+      "new_hires": 6,
+      "attrition_count": 5,
+      "time_to_hire_days": 37,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 47,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2026-03",
+      "department": "Marketing",
+      "headcount": 40,
+      "target_headcount": 50,
+      "new_hires": 1,
+      "attrition_count": 0,
+      "time_to_hire_days": 37,
+      "source_of_hire": {
+        "referral_pct": 41,
+        "job_board_pct": 31,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2026-03",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 114,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 61,
+      "source_of_hire": {
+        "referral_pct": 19,
+        "job_board_pct": 33,
+        "agency_pct": 48
+      }
+    },
+    {
+      "month": "2026-03",
+      "department": "Support",
+      "headcount": 76,
+      "target_headcount": 75,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 62,
+        "job_board_pct": 28,
+        "agency_pct": 10
+      }
+    },
+    {
+      "month": "2026-04",
+      "department": "Engineering",
+      "headcount": 194,
+      "target_headcount": 219,
+      "new_hires": 6,
+      "attrition_count": 4,
+      "time_to_hire_days": 42,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 48,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2026-04",
+      "department": "Marketing",
+      "headcount": 39,
+      "target_headcount": 51,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 32,
+      "source_of_hire": {
+        "referral_pct": 40,
+        "job_board_pct": 35,
+        "agency_pct": 25
+      }
+    },
+    {
+      "month": "2026-04",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 115,
+      "new_hires": 2,
+      "attrition_count": 2,
+      "time_to_hire_days": 53,
+      "source_of_hire": {
+        "referral_pct": 23,
+        "job_board_pct": 27,
+        "agency_pct": 50
+      }
+    },
+    {
+      "month": "2026-04",
+      "department": "Support",
+      "headcount": 76,
+      "target_headcount": 75,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 61,
+        "job_board_pct": 29,
+        "agency_pct": 10
+      }
+    },
+    {
+      "month": "2026-05",
+      "department": "Engineering",
+      "headcount": 196,
+      "target_headcount": 221,
+      "new_hires": 6,
+      "attrition_count": 4,
+      "time_to_hire_days": 43,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 47,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2026-05",
+      "department": "Marketing",
+      "headcount": 39,
+      "target_headcount": 51,
+      "new_hires": 1,
+      "attrition_count": 1,
+      "time_to_hire_days": 35,
+      "source_of_hire": {
+        "referral_pct": 39,
+        "job_board_pct": 32,
+        "agency_pct": 29
+      }
+    },
+    {
+      "month": "2026-05",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 115,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 56,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 35,
+        "agency_pct": 41
+      }
+    },
+    {
+      "month": "2026-05",
+      "department": "Support",
+      "headcount": 76,
+      "target_headcount": 75,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 53,
+        "job_board_pct": 32,
+        "agency_pct": 15
+      }
+    },
+    {
+      "month": "2026-06",
+      "department": "Engineering",
+      "headcount": 197,
+      "target_headcount": 224,
+      "new_hires": 6,
+      "attrition_count": 5,
+      "time_to_hire_days": 39,
+      "source_of_hire": {
+        "referral_pct": 24,
+        "job_board_pct": 42,
+        "agency_pct": 34
+      }
+    },
+    {
+      "month": "2026-06",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 51,
+      "new_hires": 2,
+      "attrition_count": 0,
+      "time_to_hire_days": 32,
+      "source_of_hire": {
+        "referral_pct": 34,
+        "job_board_pct": 34,
+        "agency_pct": 32
+      }
+    },
+    {
+      "month": "2026-06",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 116,
+      "new_hires": 2,
+      "attrition_count": 1,
+      "time_to_hire_days": 52,
+      "source_of_hire": {
+        "referral_pct": 21,
+        "job_board_pct": 37,
+        "agency_pct": 42
+      }
+    },
+    {
+      "month": "2026-06",
+      "department": "Support",
+      "headcount": 75,
+      "target_headcount": 75,
+      "new_hires": 0,
+      "attrition_count": 1,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 56,
+        "job_board_pct": 29,
+        "agency_pct": 15
+      }
+    },
+    {
+      "month": "2026-07",
+      "department": "Engineering",
+      "headcount": 199,
+      "target_headcount": 226,
+      "new_hires": 6,
+      "attrition_count": 4,
+      "time_to_hire_days": 41,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 45,
+        "agency_pct": 30
+      }
+    },
+    {
+      "month": "2026-07",
+      "department": "Marketing",
+      "headcount": 42,
+      "target_headcount": 52,
+      "new_hires": 2,
+      "attrition_count": 1,
+      "time_to_hire_days": 33,
+      "source_of_hire": {
+        "referral_pct": 37,
+        "job_board_pct": 35,
+        "agency_pct": 28
+      }
+    },
+    {
+      "month": "2026-07",
+      "department": "Sales",
+      "headcount": 91,
+      "target_headcount": 117,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 52,
+      "source_of_hire": {
+        "referral_pct": 25,
+        "job_board_pct": 26,
+        "agency_pct": 49
+      }
+    },
+    {
+      "month": "2026-07",
+      "department": "Support",
+      "headcount": 75,
+      "target_headcount": 76,
+      "new_hires": 0,
+      "attrition_count": 0,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 58,
+        "job_board_pct": 30,
+        "agency_pct": 12
+      }
+    },
+    {
+      "month": "2026-08",
+      "department": "Engineering",
+      "headcount": 201,
+      "target_headcount": 228,
+      "new_hires": 6,
+      "attrition_count": 4,
+      "time_to_hire_days": 43,
+      "source_of_hire": {
+        "referral_pct": 22,
+        "job_board_pct": 40,
+        "agency_pct": 38
+      }
+    },
+    {
+      "month": "2026-08",
+      "department": "Marketing",
+      "headcount": 41,
+      "target_headcount": 52,
+      "new_hires": 1,
+      "attrition_count": 2,
+      "time_to_hire_days": 37,
+      "source_of_hire": {
+        "referral_pct": 41,
+        "job_board_pct": 27,
+        "agency_pct": 32
+      }
+    },
+    {
+      "month": "2026-08",
+      "department": "Sales",
+      "headcount": 92,
+      "target_headcount": 118,
+      "new_hires": 3,
+      "attrition_count": 2,
+      "time_to_hire_days": 59,
+      "source_of_hire": {
+        "referral_pct": 21,
+        "job_board_pct": 33,
+        "agency_pct": 46
+      }
+    },
+    {
+      "month": "2026-08",
+      "department": "Support",
+      "headcount": 74,
+      "target_headcount": 76,
+      "new_hires": 0,
+      "attrition_count": 1,
+      "time_to_hire_days": null,
+      "source_of_hire": {
+        "referral_pct": 57,
+        "job_board_pct": 28,
+        "agency_pct": 15
+      }
+    }
+  ]
+}
