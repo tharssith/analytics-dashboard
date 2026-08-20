@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
   "/upload",
   "/api/records",
   "/api/qa",
+  "/api/map-columns",
 ];
 
 function isProtectedPath(pathname: string): boolean {

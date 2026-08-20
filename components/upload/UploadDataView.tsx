@@ -1,52 +1,110 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
-import { parseHrCsv } from "@/lib/csv";
+import {
+  REQUIRED_HEADERS,
+  applyColumnMapping,
+  emptyMapping,
+  isMappingComplete,
+  parseRawCsv,
+  sanitizeColumnMapping,
+  validateMappedRows,
+  type ColumnMapping,
+  type RawCsvRow,
+} from "@/lib/csv";
 import { dataset } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
+import type { HrRecord } from "@/lib/types";
+
+const selectClass =
+  "h-9 w-full rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none transition-colors duration-150 focus:border-navy";
 
 export function UploadDataView() {
   const { replaceSourceRecords } = useFilters();
   const [fileName, setFileName] = useState<string | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [rawRows, setRawRows] = useState<RawCsvRow[]>([]);
+  const [mapping, setMapping] = useState<ColumnMapping>(emptyMapping);
+  const [mappingLoading, setMappingLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [pendingText, setPendingText] = useState<string | null>(null);
+  const [pendingRecords, setPendingRecords] = useState<HrRecord[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [rowCount, setRowCount] = useState(0);
+  const mapRequest = useRef(0);
+
+  function resetFileState() {
+    setHeaders([]);
+    setRawRows([]);
+    setMapping(emptyMapping());
+    setPendingRecords(null);
+    setConfirming(false);
+    setWarnings([]);
+    setMappingLoading(false);
+  }
 
   async function onFile(file: File) {
     const text = await file.text();
-    const parsed = parseHrCsv(text);
+    const raw = parseRawCsv(text);
     setFileName(file.name);
+    setErrors(raw.errors);
+    resetFileState();
+    if (raw.errors.length > 0 && raw.rows.length === 0) return;
+
+    setHeaders(raw.headers);
+    setRawRows(raw.rows);
+    setMappingLoading(true);
+    const requestId = mapRequest.current + 1;
+    mapRequest.current = requestId;
+
+    try {
+      const response = await fetch("/api/map-columns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ headers: raw.headers }),
+      });
+      const payload = (await response.json()) as Record<string, unknown>;
+      if (mapRequest.current !== requestId) return;
+      setMapping(sanitizeColumnMapping(payload, raw.headers));
+    } catch {
+      if (mapRequest.current !== requestId) return;
+      setMapping(sanitizeColumnMapping({}, raw.headers));
+      setErrors([
+        "Could not suggest column matches. Pick each required field from the dropdowns.",
+      ]);
+    } finally {
+      if (mapRequest.current === requestId) setMappingLoading(false);
+    }
+  }
+
+  function applyMapping() {
+    if (!isMappingComplete(mapping, headers)) {
+      setErrors(["Match every required field to a column from the file."]);
+      return;
+    }
+    const mapped = applyColumnMapping(rawRows, mapping);
+    const parsed = validateMappedRows(mapped);
     setErrors(parsed.errors);
     setWarnings(parsed.warnings);
-    setRowCount(parsed.records.length);
-    setPendingText(parsed.errors.length === 0 ? text : null);
-    setConfirming(false);
+    setPendingRecords(parsed.errors.length === 0 ? parsed.records : null);
   }
 
   async function confirmReplace() {
-    if (!pendingText) return;
-    const parsed = parseHrCsv(pendingText);
-    if (parsed.errors.length > 0) {
-      setErrors(parsed.errors);
-      return;
-    }
+    if (!pendingRecords) return;
     setBusy(true);
-    const ok = await replaceSourceRecords(parsed.records);
+    const ok = await replaceSourceRecords(pendingRecords);
     setBusy(false);
     if (ok) {
-      setConfirming(false);
-      setPendingText(null);
       setFileName(null);
-      setWarnings([]);
       setErrors([]);
-      setRowCount(0);
+      resetFileState();
     }
   }
+
+  const mappingReady = headers.length > 0 && !mappingLoading;
+  const canContinue = mappingReady && isMappingComplete(mapping, headers);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background px-4 py-6 sm:px-6 lg:px-8">
@@ -92,8 +150,57 @@ export function UploadDataView() {
         {fileName ? (
           <p className="mt-3 text-sm text-foreground">
             {fileName}
-            {rowCount > 0 ? ` · ${rowCount} rows` : ""}
+            {rawRows.length > 0 ? ` · ${rawRows.length} rows` : ""}
           </p>
+        ) : null}
+
+        {mappingLoading ? (
+          <p className="mt-4 text-sm text-muted">Matching column names…</p>
+        ) : null}
+
+        {mappingReady ? (
+          <div className="mt-5 space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-xs font-medium text-muted">
+              <span>Required field</span>
+              <span>Matched column</span>
+            </div>
+            {REQUIRED_HEADERS.map((field) => (
+              <label
+                key={field}
+                className="grid grid-cols-2 items-center gap-2 text-sm text-foreground"
+              >
+                <span className="truncate font-medium">{field}</span>
+                <select
+                  value={mapping[field]}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setMapping((current) => ({ ...current, [field]: value }));
+                    setPendingRecords(null);
+                  }}
+                  className={selectClass}
+                >
+                  <option value="">Select column</option>
+                  {headers.map((header) => (
+                    <option key={`${field}-${header}`} value={header}>
+                      {header}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <p className="text-xs leading-5 text-muted">
+              This only renames columns — your data values are never changed or
+              sent to the AI.
+            </p>
+            <button
+              type="button"
+              disabled={!canContinue}
+              onClick={applyMapping}
+              className="inline-flex h-9 items-center rounded-md bg-navy px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Continue with this mapping
+            </button>
+          </div>
         ) : null}
 
         {errors.length > 0 ? (
@@ -111,13 +218,13 @@ export function UploadDataView() {
           </ul>
         ) : null}
 
-        {pendingText && errors.length === 0 ? (
+        {pendingRecords && errors.length === 0 ? (
           <button
             type="button"
             onClick={() => setConfirming(true)}
             className="mt-5 inline-flex h-9 items-center rounded-md bg-navy px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90"
           >
-            Replace my data
+            Replace my data · {pendingRecords.length} rows
           </button>
         ) : null}
       </Card>
