@@ -190,6 +190,7 @@ function aliasScore(field: RequiredHeader, header: string): number {
 export function suggestColumnMapping(headers: string[]): ColumnMapping {
   const mapping = emptyMapping();
   const used = new Set<string>();
+  const headerSet = new Set(headers);
   const candidates: Array<{
     field: RequiredHeader;
     header: string;
@@ -205,6 +206,7 @@ export function suggestColumnMapping(headers: string[]): ColumnMapping {
   candidates.sort((a, b) => b.score - a.score || a.field.localeCompare(b.field));
   for (const candidate of candidates) {
     if (mapping[candidate.field] || used.has(candidate.header)) continue;
+    if (!headerSet.has(candidate.header)) continue;
     mapping[candidate.field] = candidate.header;
     used.add(candidate.header);
   }
@@ -366,6 +368,24 @@ export function applyColumnMapping(
     for (const field of REQUIRED_HEADERS) {
       const source = mapping[field];
       next[field] = Object.hasOwn(row, source) ? row[source] : "";
+    }
+    return next;
+  });
+}
+
+export function writeMappedCellsToRaw(
+  rows: RawCsvRow[],
+  mapping: ColumnMapping,
+  mapped: Array<{ id: string; cells: Record<RequiredHeader, string> }>,
+): RawCsvRow[] {
+  const byId = new Map(mapped.map((row) => [row.id, row]));
+  return rows.map((row, index) => {
+    const source = byId.get(`r${index}`);
+    if (!source) return row;
+    const next = { ...row };
+    for (const field of REQUIRED_HEADERS) {
+      const header = mapping[field];
+      if (header) next[header] = source.cells[field] ?? "";
     }
     return next;
   });

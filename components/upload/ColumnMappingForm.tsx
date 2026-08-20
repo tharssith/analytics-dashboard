@@ -34,8 +34,8 @@ export function ColumnMappingForm({
       <h2 className="text-base font-semibold text-foreground">Column mapping</h2>
       <p className="mt-1 text-xs leading-5 text-muted">
         {aiAssisted
-          ? "Review the suggested matches. This only renames columns — your data values are never changed or sent to the AI."
-          : "Match each required field to a column from the file. No AI is used in this step."}
+          ? "Review the suggested matches for this file. Suggestions come from these headers only and reset when you upload a different file. This only renames columns — your data values are never changed or sent to the AI."
+          : "Match each required field to a column from this file. Matches are suggested from these headers only — they reset when you upload a different file."}
       </p>
       {loading ? (
         <p className="mt-4 text-sm text-muted">Matching column names…</p>

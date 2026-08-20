@@ -2,12 +2,12 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
 import { AiFixReview, type SuggestedFix } from "@/components/upload/AiFixReview";
 import { ChoiceStep } from "@/components/upload/ChoiceStep";
 import { ColumnMappingForm } from "@/components/upload/ColumnMappingForm";
-import { ManualFixTable } from "@/components/upload/ManualFixTable";
 import { navyButtonClass } from "@/components/upload/upload-ui";
 import {
   applyColumnMapping,
@@ -16,12 +16,14 @@ import {
   mappingFillCount,
   sanitizeColumnMapping,
   suggestColumnMapping,
+  writeMappedCellsToRaw,
   type ColumnMapping,
   type RawCsvRow,
   type RequiredHeader,
 } from "@/lib/csv";
 import { dataset, uniqueDepartments } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
+import { clearUploadDraft, writeUploadDraft } from "@/lib/upload-draft";
 import {
   applyValueFixes,
   failingRowIds,
@@ -46,11 +48,11 @@ type Stage =
   | "choice"
   | "mapping"
   | "ai-fixes"
-  | "manual-fix"
   | "ready"
   | "saved";
 
 export function UploadDataView() {
+  const router = useRouter();
   const { replaceSourceRecords } = useFilters();
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -86,6 +88,7 @@ export function UploadDataView() {
     setSaveError(null);
     setMappingError(null);
     setSavedLabel(null);
+    clearUploadDraft();
   }
 
   async function onFile(file: File) {
@@ -115,6 +118,7 @@ export function UploadDataView() {
     setStage("mapping");
     setSaveError(null);
     setMappingError(null);
+    setMapping(emptyMapping());
     if (nextMode === "manual") {
       setMapping(suggestColumnMapping(fileHeaders));
       return;
@@ -179,6 +183,24 @@ export function UploadDataView() {
     }
   }
 
+  function goToEditor(
+    nextAudit: string[],
+    ids: Set<string>,
+    mapped: MappedRow[],
+    raw = rawRows,
+  ) {
+    writeUploadDraft({
+      fileName: fileName ?? "File",
+      headers,
+      rawRows: writeMappedCellsToRaw(raw, mapping, mapped),
+      mapping,
+      mode: mode ?? "manual",
+      audit: nextAudit,
+      flaggedIds: [...ids],
+    });
+    router.push("/upload/edit");
+  }
+
   async function continueMapping() {
     if (!isMappingComplete(mapping, headers)) return;
     const rows = mappedRowsFromRaw(applyColumnMapping(rawRows, mapping));
@@ -194,8 +216,7 @@ export function UploadDataView() {
         return;
       }
       setSaveError(null);
-      setFlaggedIds(failingRowIds(issues));
-      setStage("manual-fix");
+      goToEditor(nextAudit, failingRowIds(issues), rows);
       return;
     }
     if (issues.length === 0) {
@@ -268,22 +289,22 @@ export function UploadDataView() {
     setAudit((current) =>
       fixNotes.length > 0 ? [...current, `AI: ${fixNotes.join(", ")}`] : current,
     );
-    setStage(remaining.length === 0 ? "ready" : "manual-fix");
+    if (remaining.length === 0) {
+      setStage("ready");
+      return;
+    }
+    goToEditor(
+      fixNotes.length > 0
+        ? [...audit, `AI: ${fixNotes.join(", ")}`]
+        : audit,
+      failingRowIds(remaining),
+      nextRows,
+    );
   }
 
   function openManualFix() {
-    setFlaggedIds(failingRowIds(inspectRows(mappedRows)));
-    setStage("manual-fix");
-  }
-
-  function onManualChange(next: MappedRow[]) {
-    setMappedRows(next);
-    setSaveError(null);
-    setFlaggedIds((current) => {
-      const nextIds = new Set(current);
-      for (const id of failingRowIds(inspectRows(next))) nextIds.add(id);
-      return nextIds;
-    });
+    const ids = failingRowIds(inspectRows(mappedRows));
+    goToEditor(audit, ids, mappedRows);
   }
 
   async function persistRows(rows: MappedRow[]) {
@@ -297,7 +318,7 @@ export function UploadDataView() {
         return next;
       });
       setSaveError(remainingIssuesMessage(issues));
-      setStage("manual-fix");
+      goToEditor(audit, failing, rows);
       return false;
     }
 
@@ -305,7 +326,7 @@ export function UploadDataView() {
     if (converted.errors.length > 0) {
       setSaveError(converted.errors[0] ?? "Some rows still fail validation.");
       setFlaggedIds(failingRowIds(inspectRows(rows)));
-      setStage("manual-fix");
+      goToEditor(audit, failingRowIds(inspectRows(rows)), rows);
       return false;
     }
 
@@ -315,7 +336,7 @@ export function UploadDataView() {
     setBusy(false);
     if (!ok) {
       setSaveError("Could not save records.");
-      setStage((current) => (current === "manual-fix" ? current : "ready"));
+      setStage("ready");
       return false;
     }
 
@@ -344,8 +365,7 @@ export function UploadDataView() {
     return true;
   }
 
-  const remainingIssues = inspectRows(mappedRows);
-  const issuesLeft = remainingIssues.length;
+  const issuesLeft = inspectRows(mappedRows).length;
   const canSave = mappedRows.length > 0 && issuesLeft === 0 && !busy;
 
   return (
@@ -403,6 +423,7 @@ export function UploadDataView() {
 
       {stage === "mapping" && mode ? (
         <ColumnMappingForm
+          key={`${fileName}:${headers.join("|")}`}
           headers={headers}
           mapping={mapping}
           loading={mappingLoading}
@@ -425,34 +446,6 @@ export function UploadDataView() {
           onApply={applyAiFixes}
           onSkip={openManualFix}
         />
-      ) : null}
-
-      {stage === "manual-fix" ? (
-        <div className="space-y-4">
-          <ManualFixTable
-            rows={mappedRows}
-            flaggedIds={flaggedIds}
-            onChange={onManualChange}
-            onCancel={resetWorking}
-          />
-          {issuesLeft > 0 ? (
-            <p className="text-sm text-rag-red">
-              {remainingIssuesMessage(remainingIssues)}
-            </p>
-          ) : saveError ? (
-            <p className="text-sm text-rag-red">{saveError}</p>
-          ) : null}
-          <div className="max-w-xl">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void persistRows(mappedRows)}
-              className={navyButtonClass}
-            >
-              {busy ? "Saving…" : "Save and Continue"}
-            </button>
-          </div>
-        </div>
       ) : null}
 
       {stage === "ready" ? (
