@@ -8,6 +8,7 @@ export function ColumnMappingForm({
   headers,
   mapping,
   loading,
+  busy,
   error,
   aiAssisted,
   onChange,
@@ -16,6 +17,7 @@ export function ColumnMappingForm({
   headers: string[];
   mapping: ColumnMapping;
   loading?: boolean;
+  busy?: boolean;
   error?: string | null;
   aiAssisted: boolean;
   onChange: (next: ColumnMapping) => void;
@@ -64,11 +66,11 @@ export function ColumnMappingForm({
           ))}
           <button
             type="button"
-            disabled={!ready}
+            disabled={!ready || busy}
             onClick={onContinue}
             className={navyButtonClass}
           >
-            Continue with this mapping
+            {busy ? "Saving…" : "Continue with this mapping"}
           </button>
         </div>
       )}

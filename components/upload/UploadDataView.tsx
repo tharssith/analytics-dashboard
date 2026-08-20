@@ -29,8 +29,17 @@ import {
   inspectRows,
   mappedRowsFromRaw,
   rowsToRecords,
+  type CellIssue,
   type MappedRow,
 } from "@/lib/upload-validate";
+
+function remainingIssuesMessage(issues: CellIssue[]): string {
+  const rowCount = failingRowIds(issues).size;
+  const issueCount = issues.length;
+  return `${rowCount} row${rowCount === 1 ? "" : "s"} still ${
+    rowCount === 1 ? "has" : "have"
+  } ${issueCount} validation issue${issueCount === 1 ? "" : "s"}. Fix the highlighted cells before saving.`;
+}
 
 type Mode = "ai" | "manual";
 type Stage =
@@ -172,17 +181,23 @@ export function UploadDataView() {
     const prefix = mode === "ai" ? "AI" : "Manual";
     const nextAudit = [`${prefix}: mapped ${mappedCount} columns`];
     const issues = inspectRows(rows);
+    if (mode === "manual") {
+      setAudit(nextAudit);
+      if (issues.length === 0) {
+        await persistRows(rows);
+        return;
+      }
+      setSaveError(null);
+      setFlaggedIds(failingRowIds(issues));
+      setStage("manual-fix");
+      return;
+    }
     if (issues.length === 0) {
       setAudit(nextAudit);
       setStage("ready");
       return;
     }
     setFlaggedIds(failingRowIds(issues));
-    if (mode === "manual") {
-      setAudit(nextAudit);
-      setStage("manual-fix");
-      return;
-    }
     setAudit(nextAudit);
     setStage("ai-fixes");
     setAiLoading(true);
@@ -257,34 +272,57 @@ export function UploadDataView() {
 
   function onManualChange(next: MappedRow[]) {
     setMappedRows(next);
+    setSaveError(null);
+    setFlaggedIds((current) => {
+      const nextIds = new Set(current);
+      for (const id of failingRowIds(inspectRows(next))) nextIds.add(id);
+      return nextIds;
+    });
   }
 
-  async function save() {
-    const converted = rowsToRecords(mappedRows);
+  async function persistRows(rows: MappedRow[]) {
+    setMappedRows(rows);
+    const issues = inspectRows(rows);
+    if (issues.length > 0) {
+      const failing = failingRowIds(issues);
+      setFlaggedIds((current) => {
+        const next = new Set(current);
+        for (const id of failing) next.add(id);
+        return next;
+      });
+      setSaveError(remainingIssuesMessage(issues));
+      setStage("manual-fix");
+      return false;
+    }
+
+    const converted = rowsToRecords(rows);
     if (converted.errors.length > 0) {
       setSaveError(converted.errors[0] ?? "Some rows still fail validation.");
-      setFlaggedIds(failingRowIds(inspectRows(mappedRows)));
+      setFlaggedIds(failingRowIds(inspectRows(rows)));
       setStage("manual-fix");
-      return;
+      return false;
     }
+
     setBusy(true);
     setSaveError(null);
     const ok = await replaceSourceRecords(converted.records);
     setBusy(false);
     if (!ok) {
       setSaveError("Could not save records.");
-      return;
+      setStage((current) => (current === "manual-fix" ? current : "ready"));
+      return false;
     }
+
     const remainingFlagged = [...flaggedIds].filter((id) =>
-      inspectRows(mappedRows).some((issue) => issue.rowId === id),
+      inspectRows(rows).some((issue) => issue.rowId === id),
     ).length;
     const manualFixed = Math.max(0, flaggedIds.size - remainingFlagged);
-    if (mode === "manual") {
+    if (mode === "manual" && flaggedIds.size > 0) {
       setAudit((current) => [
         ...current,
         `Manual: fixed ${manualFixed} row${manualFixed === 1 ? "" : "s"} by hand`,
       ]);
-    } else if (manualFixed > 0) {
+    } else if (mode === "ai" && manualFixed > 0) {
       setAudit((current) => [
         ...current,
         `AI: ${manualFixed} remaining cell group${manualFixed === 1 ? "" : "s"} fixed manually`,
@@ -297,9 +335,11 @@ export function UploadDataView() {
       }.`,
     );
     setStage("saved");
+    return true;
   }
 
-  const issuesLeft = inspectRows(mappedRows).length;
+  const remainingIssues = inspectRows(mappedRows);
+  const issuesLeft = remainingIssues.length;
   const canSave = mappedRows.length > 0 && issuesLeft === 0 && !busy;
 
   return (
@@ -360,11 +400,15 @@ export function UploadDataView() {
           headers={headers}
           mapping={mapping}
           loading={mappingLoading}
+          busy={busy}
           error={mappingError}
           aiAssisted={mode === "ai"}
           onChange={setMapping}
           onContinue={() => void continueMapping()}
         />
+      ) : null}
+      {stage === "mapping" && saveError ? (
+        <p className="mt-3 max-w-xl text-sm text-rag-red">{saveError}</p>
       ) : null}
 
       {stage === "ai-fixes" ? (
@@ -385,16 +429,33 @@ export function UploadDataView() {
             onChange={onManualChange}
             onCancel={resetWorking}
           />
-          {saveError ? <p className="text-sm text-rag-red">{saveError}</p> : null}
+          {issuesLeft > 0 ? (
+            <p className="text-sm text-rag-red">
+              {remainingIssuesMessage(remainingIssues)}
+            </p>
+          ) : saveError ? (
+            <p className="text-sm text-rag-red">{saveError}</p>
+          ) : null}
+          <div className="max-w-xl">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void persistRows(mappedRows)}
+              className={navyButtonClass}
+            >
+              {busy ? "Saving…" : "Save and Continue"}
+            </button>
+          </div>
         </div>
       ) : null}
 
-      {stage === "ready" || (stage === "manual-fix" && issuesLeft === 0) ? (
+      {stage === "ready" ? (
         <div className="mt-5 max-w-xl">
+          {saveError ? <p className="mb-3 text-sm text-rag-red">{saveError}</p> : null}
           <button
             type="button"
             disabled={!canSave}
-            onClick={() => void save()}
+            onClick={() => void persistRows(mappedRows)}
             className={navyButtonClass}
           >
             {busy ? "Saving…" : "Save and Continue"}
