@@ -1,5 +1,5 @@
 -- Northstar Financial demo schema.
--- Auth lives in Supabase Auth (auth.users). No public sign-up in the app.
+-- Auth lives in Supabase Auth (auth.users). The app allows public email sign-up.
 
 create table if not exists public.hr_records (
   id uuid primary key default gen_random_uuid(),
