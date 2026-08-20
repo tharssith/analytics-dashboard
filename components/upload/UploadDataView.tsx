@@ -13,6 +13,7 @@ import {
   applyColumnMapping,
   emptyMapping,
   isMappingComplete,
+  mappingFillCount,
   mappingFromExactHeaders,
   sanitizeColumnMapping,
   type ColumnMapping,
@@ -56,6 +57,7 @@ export function UploadDataView() {
   const [aiSkipped, setAiSkipped] = useState(0);
   const [audit, setAudit] = useState<string[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [mappingError, setMappingError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [savedLabel, setSavedLabel] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export function UploadDataView() {
     setAiLoading(false);
     setAudit([]);
     setSaveError(null);
+    setMappingError(null);
     setSavedLabel(null);
   }
 
@@ -98,28 +101,64 @@ export function UploadDataView() {
   }
 
   async function chooseMode(nextMode: Mode) {
+    const fileHeaders = headers;
     setMode(nextMode);
     setStage("mapping");
     setSaveError(null);
+    setMappingError(null);
     if (nextMode === "manual") {
-      setMapping(mappingFromExactHeaders(headers));
+      setMapping(mappingFromExactHeaders(fileHeaders));
       return;
     }
     setMappingLoading(true);
     const requestId = mapRequest.current + 1;
     mapRequest.current = requestId;
+    console.info("[upload] map-columns request", {
+      count: fileHeaders.length,
+      headers: fileHeaders,
+    });
+    if (fileHeaders.length === 0) {
+      setMapping(emptyMapping());
+      setMappingError(
+        "AI couldn't determine matches — please map manually below",
+      );
+      setMappingLoading(false);
+      return;
+    }
     try {
       const response = await fetch("/api/map-columns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ headers }),
+        body: JSON.stringify({ headers: fileHeaders }),
       });
       const payload = (await response.json()) as Record<string, unknown>;
+      console.info("[upload] map-columns response", {
+        ok: response.ok,
+        status: response.status,
+        payload,
+      });
       if (mapRequest.current !== requestId) return;
-      setMapping(sanitizeColumnMapping(payload, headers));
-    } catch {
+      if (!response.ok) {
+        setMapping(mappingFromExactHeaders(fileHeaders));
+        setMappingError(
+          "AI couldn't determine matches — please map manually below",
+        );
+        return;
+      }
+      const next = sanitizeColumnMapping(payload, fileHeaders);
+      setMapping(next);
+      if (mappingFillCount(next) === 0) {
+        setMappingError(
+          "AI couldn't determine matches — please map manually below",
+        );
+      }
+    } catch (error) {
+      console.info("[upload] map-columns failed", error);
       if (mapRequest.current !== requestId) return;
-      setMapping(mappingFromExactHeaders(headers));
+      setMapping(mappingFromExactHeaders(fileHeaders));
+      setMappingError(
+        "AI couldn't determine matches — please map manually below",
+      );
     } finally {
       if (mapRequest.current === requestId) setMappingLoading(false);
     }
@@ -321,6 +360,7 @@ export function UploadDataView() {
           headers={headers}
           mapping={mapping}
           loading={mappingLoading}
+          error={mappingError}
           aiAssisted={mode === "ai"}
           onChange={setMapping}
           onContinue={() => void continueMapping()}

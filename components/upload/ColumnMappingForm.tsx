@@ -8,6 +8,7 @@ export function ColumnMappingForm({
   headers,
   mapping,
   loading,
+  error,
   aiAssisted,
   onChange,
   onContinue,
@@ -15,6 +16,7 @@ export function ColumnMappingForm({
   headers: string[];
   mapping: ColumnMapping;
   loading?: boolean;
+  error?: string | null;
   aiAssisted: boolean;
   onChange: (next: ColumnMapping) => void;
   onContinue: () => void;
@@ -33,6 +35,7 @@ export function ColumnMappingForm({
         <p className="mt-4 text-sm text-muted">Matching column names…</p>
       ) : (
         <div className="mt-5 space-y-3">
+          {error ? <p className="text-sm text-rag-red">{error}</p> : null}
           <div className="grid grid-cols-2 gap-2 text-xs font-medium text-muted">
             <span>Required field</span>
             <span>Matched column</span>

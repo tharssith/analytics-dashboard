@@ -72,13 +72,8 @@ export async function POST(request: Request) {
     };
     if (!response.ok) return Response.json(mappingPayload(fallback));
     const parsed = extractJson(payload.choices?.[0]?.message?.content ?? "");
-    const object =
-      parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>)
-        : {};
-    return Response.json(
-      mappingPayload(sanitizeColumnMapping(object, headers)),
-    );
+    const mapping = sanitizeColumnMapping(parsed, headers);
+    return Response.json(mappingPayload(mapping));
   } catch {
     return Response.json(mappingPayload(fallback));
   }

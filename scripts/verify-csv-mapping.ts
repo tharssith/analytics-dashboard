@@ -89,3 +89,46 @@ assert.equal(xlsxRaw.rows[1]["Emp Count"], "172");
 console.log(
   "xlsx parse preserves Emp Count=47, Dept=Sales, Days to Hire=33, Emp Count=172",
 );
+
+const titled = XLSX.utils.aoa_to_sheet([
+  ["E1 BaseData"],
+  [],
+  [
+    "Period",
+    "Dept",
+    "Emp Count",
+    "Target HC",
+    "Hires",
+    "Exits",
+    "Days to Hire",
+    "Referral %",
+    "Job Board %",
+    "Agency %",
+  ],
+  ["2024-11", "Sales", 47, 51, 3, 2, 33, 40, 35, 25],
+]);
+const titledBook = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(titledBook, titled, "Cover");
+const titledRaw = parseRawXlsx(
+  XLSX.write(titledBook, { type: "array", bookType: "xlsx" }),
+);
+assert.deepEqual(titledRaw.headers.slice(0, 3), ["Period", "Dept", "Emp Count"]);
+assert.equal(titledRaw.rows[0]["Emp Count"], "47");
+console.log("xlsx skips title row and reads Period/Dept/Emp Count");
+
+const fuzzy = sanitizeColumnMapping(
+  {
+    mapping: {
+      month: "period",
+      department: "DEPT",
+      headcount: "emp count",
+      target_headcount: "Target-HC",
+    },
+  },
+  titledRaw.headers,
+);
+assert.equal(fuzzy.month, "Period");
+assert.equal(fuzzy.department, "Dept");
+assert.equal(fuzzy.headcount, "Emp Count");
+assert.equal(fuzzy.target_headcount, "Target HC");
+console.log("mapping matches xlsx headers case-insensitively");

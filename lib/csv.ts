@@ -35,6 +35,46 @@ export type CsvParseResult = {
 
 const NOT_FOUND = "not found";
 
+function normalizeHeaderKey(value: string): string {
+  return value
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u00a0\u2000-\u200b]/g, " ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function matchExistingHeader(
+  candidate: string,
+  headers: string[],
+): string {
+  const trimmed = candidate.trim();
+  if (!trimmed || trimmed.toLowerCase() === NOT_FOUND) return "";
+  const exact = headers.find((header) => header === trimmed);
+  if (exact) return exact;
+  const needle = normalizeHeaderKey(trimmed);
+  return (
+    headers.find((header) => normalizeHeaderKey(header) === needle) ?? ""
+  );
+}
+
+export function unwrapMappingObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  if (REQUIRED_HEADERS.some((field) => typeof record[field] === "string")) {
+    return record;
+  }
+  for (const nested of Object.values(record)) {
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
+    const inner = nested as Record<string, unknown>;
+    if (REQUIRED_HEADERS.some((field) => typeof inner[field] === "string")) {
+      return inner;
+    }
+  }
+  return record;
+}
+
 function asCellString(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
@@ -63,7 +103,7 @@ export function exactHeaderMatch(
   field: RequiredHeader,
   headers: string[],
 ): string {
-  return headers.find((header) => header.toLowerCase() === field) ?? "";
+  return matchExistingHeader(field, headers);
 }
 
 export function mappingFromExactHeaders(headers: string[]): ColumnMapping {
@@ -75,20 +115,23 @@ export function mappingFromExactHeaders(headers: string[]): ColumnMapping {
 }
 
 export function sanitizeColumnMapping(
-  suggested: Record<string, unknown>,
+  suggested: unknown,
   headers: string[],
 ): ColumnMapping {
-  const headerSet = new Set(headers);
+  const source = unwrapMappingObject(suggested);
   const mapping = mappingFromExactHeaders(headers);
   for (const field of REQUIRED_HEADERS) {
     if (mapping[field]) continue;
-    const value = suggested[field];
+    const value = source[field];
     if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (!trimmed || trimmed.toLowerCase() === NOT_FOUND) continue;
-    if (headerSet.has(trimmed)) mapping[field] = trimmed;
+    const matched = matchExistingHeader(value, headers);
+    if (matched) mapping[field] = matched;
   }
   return mapping;
+}
+
+export function mappingFillCount(mapping: ColumnMapping): number {
+  return REQUIRED_HEADERS.filter((field) => mapping[field]).length;
 }
 
 export function isMappingComplete(
@@ -105,7 +148,11 @@ export function parseRawCsv(text: string): RawCsvParseResult {
     skipEmptyLines: "greedy",
     dynamicTyping: false,
     transformHeader(header) {
-      return header.replace(/^\uFEFF/, "").trim();
+      return header
+        .replace(/^\uFEFF/, "")
+        .replace(/[\u00a0\u2000-\u200b]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     },
   });
 
