@@ -1,5 +1,5 @@
 -- Northstar Financial data tables on Neon Postgres.
--- Login stays on Supabase Auth. Rows are scoped by auth user id in the app.
+-- Login uses Neon Auth. Rows are scoped by the Neon Auth user id.
 
 create extension if not exists pgcrypto;
 

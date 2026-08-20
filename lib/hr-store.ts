@@ -1,8 +1,6 @@
 import { cloneRecords, dataset } from "@/lib/data";
 import { requireUserId } from "@/lib/auth-user";
 import { getSql, isNeonConfigured } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { HrRecord } from "@/lib/types";
 
 export type HrRecordRow = {
@@ -112,23 +110,6 @@ async function insertRecords(userId: string, rows: HrPayload[]) {
   `;
 }
 
-async function importFromSupabase(userId: string): Promise<HrRecordRow[]> {
-  if (!isSupabaseConfigured()) return [];
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("hr_records")
-      .select("*")
-      .eq("user_id", userId)
-      .order("month", { ascending: true })
-      .order("department", { ascending: true });
-    if (error || !data?.length) return [];
-    return data as HrRecordRow[];
-  } catch {
-    return [];
-  }
-}
-
 export async function getOrSeedHrRecords(): Promise<{
   records: HrRecord[];
   error: string | null;
@@ -140,18 +121,6 @@ export async function getOrSeedHrRecords(): Promise<{
     const first = await selectRecords(userId);
     if (first.length > 0) {
       return { records: first.map(rowToRecord), error: null };
-    }
-
-    const imported = await importFromSupabase(userId);
-    if (imported.length > 0) {
-      await insertRecords(
-        userId,
-        imported.map((row) => recordToPayload(rowToRecord(row))),
-      );
-      const copied = await selectRecords(userId);
-      if (copied.length > 0) {
-        return { records: copied.map(rowToRecord), error: null };
-      }
     }
 
     await insertRecords(userId, seedPayload());

@@ -1,6 +1,10 @@
+import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { dataset } from "@/lib/data";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { auth } from "@/lib/auth/server";
+import { isNeonAuthConfigured } from "@/lib/auth/env";
+
+export const dynamic = "force-dynamic";
 
 export default async function LoginPage({
   searchParams,
@@ -13,6 +17,11 @@ export default async function LoginPage({
       ? params.next
       : "/dashboard";
 
+  if (isNeonAuthConfigured()) {
+    const { data: session } = await auth.getSession();
+    if (session?.user) redirect(next);
+  }
+
   return (
     <main className="flex h-screen flex-col items-center justify-center overflow-hidden bg-background px-6">
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
@@ -24,10 +33,9 @@ export default async function LoginPage({
       <p className="mt-2 max-w-sm text-center text-sm text-muted">
         {dataset.company.name} HR Analytics
       </p>
-      {!isSupabaseConfigured() ? (
+      {!isNeonAuthConfigured() ? (
         <p className="mt-6 max-w-sm text-center text-sm text-rag-red">
-          Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then
-          reload.
+          Add NEON_AUTH_BASE_URL and NEON_AUTH_COOKIE_SECRET, then reload.
         </p>
       ) : (
         <LoginForm next={next} />

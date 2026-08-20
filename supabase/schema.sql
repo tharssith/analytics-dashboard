@@ -1,2 +1,0 @@
--- Supabase is used for Auth only (auth.users).
--- HR and uploaded datasets now live on Neon: see neon/schema.sql.

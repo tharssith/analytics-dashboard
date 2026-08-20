@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { dataset } from "@/lib/data";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { auth } from "@/lib/auth/server";
+import { isNeonAuthConfigured } from "@/lib/auth/env";
+
+export const dynamic = "force-dynamic";
 
 async function demoHref(): Promise<string> {
-  if (!isSupabaseConfigured()) return "/login";
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user ? "/dashboard" : "/login";
+  if (!isNeonAuthConfigured()) return "/login";
+  const { data: session } = await auth.getSession();
+  return session?.user ? "/dashboard" : "/login";
 }
 
 export default async function LandingPage() {

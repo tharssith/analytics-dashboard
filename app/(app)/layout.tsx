@@ -6,8 +6,10 @@ import { FiltersProvider } from "@/lib/filters-context";
 import { getOrSeedHrRecords } from "@/lib/hr-store";
 import { getStoredDataset } from "@/lib/dataset-store";
 import { AppErrorToast } from "@/components/ui/AppErrorToast";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { auth } from "@/lib/auth/server";
+import { isNeonAuthConfigured } from "@/lib/auth/env";
+
+export const dynamic = "force-dynamic";
 
 function AppSkeleton() {
   return (
@@ -29,12 +31,9 @@ function AppSkeleton() {
 }
 
 async function RecordsShell({ children }: { children: React.ReactNode }) {
-  if (!isSupabaseConfigured()) redirect("/login");
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!isNeonAuthConfigured()) redirect("/login");
+  const { data: session } = await auth.getSession();
+  if (!session?.user) redirect("/login");
 
   const { records, error } = await getOrSeedHrRecords();
   const stored = await getStoredDataset();

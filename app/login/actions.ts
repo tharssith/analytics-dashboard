@@ -1,8 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { auth } from "@/lib/auth/server";
+import { isNeonAuthConfigured } from "@/lib/auth/env";
 
 function safePath(value: unknown): string {
   if (typeof value !== "string") return "/dashboard";
@@ -21,12 +21,17 @@ function credentials(formData: FormData) {
   };
 }
 
+function displayName(email: string): string {
+  const local = email.split("@")[0]?.trim();
+  return local && local.length > 0 ? local : "Analyst";
+}
+
 export async function authAction(
   _prev: { error: string } | null,
   formData: FormData,
 ): Promise<{ error: string }> {
-  if (!isSupabaseConfigured()) {
-    return { error: "Supabase is not configured." };
+  if (!isNeonAuthConfigured()) {
+    return { error: "Neon Auth is not configured." };
   }
 
   const intent = String(formData.get("intent") ?? "login");
@@ -35,39 +40,29 @@ export async function authAction(
   if (!email || !password) {
     return { error: "Enter an email and password." };
   }
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
   }
 
-  const supabase = await createClient();
-
   if (intent === "signup") {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { error } = await auth.signUp.email({
+      email,
+      password,
+      name: displayName(email),
+    });
     if (error) {
-      const message = error.message.toLowerCase();
-      if (message.includes("already") || message.includes("registered")) {
+      const message = (error.message ?? "Failed to create account").toLowerCase();
+      if (message.includes("already") || message.includes("exists")) {
         return { error: "That email already has an account. Log in instead." };
       }
-      if (message.includes("signups") || message.includes("disabled")) {
-        return {
-          error:
-            "Sign-up is turned off in Supabase. Enable Email sign-ups in Authentication → Providers.",
-        };
-      }
-      return { error: error.message };
-    }
-    if (!data.session) {
-      return {
-        error:
-          "Account created, but email confirmation is still on. Turn off Confirm email in Supabase Authentication → Providers, then log in.",
-      };
+      return { error: error.message ?? "Failed to create account." };
     }
     redirect(next);
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await auth.signIn.email({ email, password });
   if (error) {
-    return { error: "Invalid email or password" };
+    return { error: "Invalid email or password." };
   }
   redirect(next);
 }
@@ -80,9 +75,28 @@ export async function loginAction(
 }
 
 export async function logoutAction() {
-  if (isSupabaseConfigured()) {
-    const supabase = await createClient();
-    await supabase.auth.signOut();
+  if (isNeonAuthConfigured()) {
+    await auth.signOut();
   }
   redirect("/login");
+}
+
+export async function updatePasswordAction(
+  _prev: { error: string } | null,
+  formData: FormData,
+): Promise<{ error: string } | null> {
+  if (!isNeonAuthConfigured()) {
+    return { error: "Neon Auth is not configured." };
+  }
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  const { error } = await auth.changePassword({
+    currentPassword,
+    newPassword: password,
+  });
+  if (error) return { error: error.message ?? "Could not update password." };
+  redirect("/dashboard");
 }

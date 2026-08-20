@@ -8,8 +8,6 @@ import {
   type DatasetProfile,
   type StoredDataset,
 } from "@/lib/dataset";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -84,22 +82,6 @@ function publicError(error: unknown): string {
   return "Could not load dataset from Neon.";
 }
 
-async function importFromSupabase(userId: string): Promise<StoredDataset | null> {
-  if (!isSupabaseConfigured()) return null;
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("user_datasets")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return rowToDataset(data as Record<string, unknown>);
-  } catch {
-    return null;
-  }
-}
-
 export async function getStoredDataset(): Promise<{
   dataset: StoredDataset | null;
   error: string | null;
@@ -113,12 +95,6 @@ export async function getStoredDataset(): Promise<{
       select * from public.user_datasets where user_id = ${userId} limit 1
     `) as DatasetRow[];
     if (rows[0]) return { dataset: fromDbRow(rows[0]), error: null };
-
-    const imported = await importFromSupabase(userId);
-    if (imported) {
-      await replaceStoredDataset(imported);
-      return { dataset: imported, error: null };
-    }
     return { dataset: null, error: null };
   } catch (error) {
     return { dataset: null, error: publicError(error) };

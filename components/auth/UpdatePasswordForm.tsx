@@ -1,58 +1,39 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserSupabase } from "@/lib/supabase/client";
+import { useActionState } from "react";
+import { updatePasswordAction } from "@/app/login/actions";
 
 const inputClass =
   "h-9 w-full rounded-md border border-border bg-white px-3 text-sm text-foreground outline-none transition-colors duration-150 placeholder:text-muted focus:border-navy";
 
 export function UpdatePasswordForm() {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const password = String(new FormData(form).get("password") ?? "");
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    setError(null);
-    setPending(true);
-    try {
-      const supabase = createBrowserSupabase();
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) {
-        setError(updateError.message);
-        return;
-      }
-      router.push("/dashboard");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update password.");
-    } finally {
-      setPending(false);
-    }
-  }
+  const [state, formAction, pending] = useActionState(updatePasswordAction, null);
 
   return (
-    <form className="mt-8 w-full max-w-sm space-y-4" onSubmit={onSubmit}>
+    <form className="mt-8 w-full max-w-sm space-y-4" action={formAction}>
+      <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
+        Current password
+        <input
+          type="password"
+          name="currentPassword"
+          autoComplete="current-password"
+          minLength={8}
+          required
+          className={inputClass}
+        />
+      </label>
       <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">
         New password
         <input
           type="password"
           name="password"
           autoComplete="new-password"
-          minLength={6}
+          minLength={8}
           required
           className={inputClass}
         />
       </label>
-      {error ? <p className="text-sm text-rag-red">{error}</p> : null}
+      {state?.error ? <p className="text-sm text-rag-red">{state.error}</p> : null}
       <button
         type="submit"
         disabled={pending}
