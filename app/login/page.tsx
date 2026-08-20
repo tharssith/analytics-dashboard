@@ -19,7 +19,7 @@ export default async function LoginPage({
         {dataset.company.industry}
       </p>
       <h1 className="mt-3 text-center text-3xl font-semibold tracking-tight text-foreground">
-        Log in
+        Log in or create an account
       </h1>
       <p className="mt-2 max-w-sm text-center text-sm text-muted">
         {dataset.company.name} HR Analytics
