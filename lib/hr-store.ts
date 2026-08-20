@@ -1,6 +1,9 @@
 import { cloneRecords, dataset } from "@/lib/data";
-import type { HrRecord } from "@/lib/types";
+import { requireUserId } from "@/lib/auth-user";
+import { getSql, isNeonConfigured } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import type { HrRecord } from "@/lib/types";
 
 export type HrRecordRow = {
   id: string;
@@ -17,20 +20,23 @@ export type HrRecordRow = {
   agency_pct: number;
 };
 
+type HrPayload = ReturnType<typeof recordToPayload>;
+
 export function rowToRecord(row: HrRecordRow): HrRecord {
   return {
     id: row.id,
     month: row.month,
     department: row.department,
-    headcount: row.headcount,
-    target_headcount: row.target_headcount,
-    new_hires: row.new_hires,
-    attrition_count: row.attrition_count,
-    time_to_hire_days: row.time_to_hire_days,
+    headcount: Number(row.headcount),
+    target_headcount: Number(row.target_headcount),
+    new_hires: Number(row.new_hires),
+    attrition_count: Number(row.attrition_count),
+    time_to_hire_days:
+      row.time_to_hire_days === null ? null : Number(row.time_to_hire_days),
     source_of_hire: {
-      referral_pct: row.referral_pct,
-      job_board_pct: row.job_board_pct,
-      agency_pct: row.agency_pct,
+      referral_pct: Number(row.referral_pct),
+      job_board_pct: Number(row.job_board_pct),
+      agency_pct: Number(row.agency_pct),
     },
   };
 }
@@ -54,37 +60,73 @@ function seedPayload() {
   return cloneRecords(dataset.records).map(recordToPayload);
 }
 
-function publicError(error: { message?: string; code?: string } | null): string {
-  if (!error?.message) return "Could not load HR records from the database.";
-  if (error.code === "42P01" || error.message.includes("hr_records")) {
-    return "Could not load HR records. Run supabase/schema.sql in the Supabase SQL editor, then try again.";
+function publicError(error: unknown): string {
+  if (!isNeonConfigured()) {
+    return "Neon is not configured. Set DATABASE_URL on Vercel, then redeploy.";
   }
-  return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return "Could not load HR records from Neon.";
 }
 
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { supabase, user: null, error: "Sign in required." };
-  }
-  return { supabase, user, error: null };
+async function selectRecords(userId: string) {
+  const sql = await getSql();
+  return (await sql`
+    select * from public.hr_records
+    where user_id = ${userId}
+    order by month asc, department asc
+  `) as HrRecordRow[];
 }
 
-async function selectRecords(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-) {
-  const { data, error } = await supabase
-    .from("hr_records")
-    .select("*")
-    .eq("user_id", userId)
-    .order("month", { ascending: true })
-    .order("department", { ascending: true });
-  return { data: (data as HrRecordRow[] | null) ?? [], error };
+async function insertRecords(userId: string, rows: HrPayload[]) {
+  if (rows.length === 0) return;
+  const sql = await getSql();
+  await sql`
+    insert into public.hr_records (
+      user_id, month, department, headcount, target_headcount, new_hires,
+      attrition_count, time_to_hire_days, referral_pct, job_board_pct, agency_pct
+    )
+    select
+      ${userId},
+      x.month,
+      x.department,
+      coalesce(x.headcount, 0),
+      coalesce(x.target_headcount, 0),
+      coalesce(x.new_hires, 0),
+      coalesce(x.attrition_count, 0),
+      x.time_to_hire_days,
+      coalesce(x.referral_pct, 0),
+      coalesce(x.job_board_pct, 0),
+      coalesce(x.agency_pct, 0)
+    from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as x(
+      month text,
+      department text,
+      headcount double precision,
+      target_headcount double precision,
+      new_hires double precision,
+      attrition_count double precision,
+      time_to_hire_days double precision,
+      referral_pct double precision,
+      job_board_pct double precision,
+      agency_pct double precision
+    )
+  `;
+}
+
+async function importFromSupabase(userId: string): Promise<HrRecordRow[]> {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("hr_records")
+      .select("*")
+      .eq("user_id", userId)
+      .order("month", { ascending: true })
+      .order("department", { ascending: true });
+    if (error || !data?.length) return [];
+    return data as HrRecordRow[];
+  } catch {
+    return [];
+  }
 }
 
 export async function getOrSeedHrRecords(): Promise<{
@@ -92,32 +134,34 @@ export async function getOrSeedHrRecords(): Promise<{
   error: string | null;
 }> {
   try {
-    const { supabase, user, error: authError } = await requireUser();
-    if (!user) return { records: [], error: authError };
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { records: [], error: authError };
 
-    const first = await selectRecords(supabase, user.id);
-    if (first.error) return { records: [], error: publicError(first.error) };
-    if (first.data.length > 0) {
-      return { records: first.data.map(rowToRecord), error: null };
+    const first = await selectRecords(userId);
+    if (first.length > 0) {
+      return { records: first.map(rowToRecord), error: null };
     }
 
-    const { error: insertError } = await supabase.from("hr_records").insert(
-      seedPayload().map((row) => ({ ...row, user_id: user.id })),
-    );
-    const again = await selectRecords(supabase, user.id);
-    if (again.error) return { records: [], error: publicError(again.error) };
-    if (again.data.length > 0) {
-      return { records: again.data.map(rowToRecord), error: null };
+    const imported = await importFromSupabase(userId);
+    if (imported.length > 0) {
+      await insertRecords(
+        userId,
+        imported.map((row) => recordToPayload(rowToRecord(row))),
+      );
+      const copied = await selectRecords(userId);
+      if (copied.length > 0) {
+        return { records: copied.map(rowToRecord), error: null };
+      }
     }
-    return {
-      records: [],
-      error: publicError(insertError),
-    };
+
+    await insertRecords(userId, seedPayload());
+    const seeded = await selectRecords(userId);
+    if (seeded.length > 0) {
+      return { records: seeded.map(rowToRecord), error: null };
+    }
+    return { records: [], error: "Could not seed HR records into Neon." };
   } catch (error) {
-    return {
-      records: [],
-      error: error instanceof Error ? error.message : "Could not load HR records.",
-    };
+    return { records: [], error: publicError(error) };
   }
 }
 
@@ -126,25 +170,32 @@ export async function updateHrRecord(
   record: HrRecord,
 ): Promise<{ record: HrRecord | null; error: string | null }> {
   try {
-    const { supabase, user, error: authError } = await requireUser();
-    if (!user) return { record: null, error: authError };
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { record: null, error: authError };
 
-    const { data, error } = await supabase
-      .from("hr_records")
-      .update(recordToPayload(record))
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .select("*")
-      .single();
-    if (error || !data) {
-      return { record: null, error: publicError(error) };
+    const payload = recordToPayload(record);
+    const sql = await getSql();
+    const rows = (await sql`
+      update public.hr_records set
+        month = ${payload.month},
+        department = ${payload.department},
+        headcount = ${payload.headcount},
+        target_headcount = ${payload.target_headcount},
+        new_hires = ${payload.new_hires},
+        attrition_count = ${payload.attrition_count},
+        time_to_hire_days = ${payload.time_to_hire_days},
+        referral_pct = ${payload.referral_pct},
+        job_board_pct = ${payload.job_board_pct},
+        agency_pct = ${payload.agency_pct}
+      where id = ${id}::uuid and user_id = ${userId}
+      returning *
+    `) as HrRecordRow[];
+    if (rows.length === 0) {
+      return { record: null, error: "That HR record was not found." };
     }
-    return { record: rowToRecord(data as HrRecordRow), error: null };
+    return { record: rowToRecord(rows[0]), error: null };
   } catch (error) {
-    return {
-      record: null,
-      error: error instanceof Error ? error.message : "Could not save that change.",
-    };
+    return { record: null, error: publicError(error) };
   }
 }
 
@@ -152,31 +203,16 @@ export async function replaceHrRecords(
   records: HrRecord[],
 ): Promise<{ records: HrRecord[]; error: string | null }> {
   try {
-    const { supabase, user, error: authError } = await requireUser();
-    if (!user) return { records: [], error: authError };
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { records: [], error: authError };
 
-    const payload = records.map(recordToPayload);
-    const { error } = await supabase.rpc("replace_hr_records", { rows: payload });
-    if (error) {
-      const { error: deleteError } = await supabase
-        .from("hr_records")
-        .delete()
-        .eq("user_id", user.id);
-      if (deleteError) return { records: [], error: publicError(deleteError) };
-      const { error: insertError } = await supabase.from("hr_records").insert(
-        payload.map((row) => ({ ...row, user_id: user.id })),
-      );
-      if (insertError) return { records: [], error: publicError(insertError) };
-    }
-
-    const next = await selectRecords(supabase, user.id);
-    if (next.error) return { records: [], error: publicError(next.error) };
-    return { records: next.data.map(rowToRecord), error: null };
+    const sql = await getSql();
+    await sql`delete from public.hr_records where user_id = ${userId}`;
+    await insertRecords(userId, records.map(recordToPayload));
+    const next = await selectRecords(userId);
+    return { records: next.map(rowToRecord), error: null };
   } catch (error) {
-    return {
-      records: [],
-      error: error instanceof Error ? error.message : "Could not replace HR records.",
-    };
+    return { records: [], error: publicError(error) };
   }
 }
 

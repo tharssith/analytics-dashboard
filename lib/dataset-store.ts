@@ -1,4 +1,6 @@
 import type { RawCsvRow } from "@/lib/csv";
+import { requireUserId } from "@/lib/auth-user";
+import { getSql, isNeonConfigured } from "@/lib/db";
 import {
   DEFAULT_HR_PROFILE,
   isDatasetKind,
@@ -7,6 +9,7 @@ import {
   type StoredDataset,
 } from "@/lib/dataset";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -19,6 +22,20 @@ function asRows(value: unknown): RawCsvRow[] {
     (row): row is RawCsvRow => Boolean(row) && typeof row === "object" && !Array.isArray(row),
   );
 }
+
+type DatasetRow = {
+  filename: string;
+  kind: string;
+  type_from_name: string;
+  type_from_headers: string;
+  name_header_match: boolean;
+  reason: string | null;
+  time_field: string | null;
+  category_field: string | null;
+  metric_fields: unknown;
+  headers: unknown;
+  rows: unknown;
+};
 
 export function rowToDataset(row: Record<string, unknown>): StoredDataset {
   const kind = isDatasetKind(row.kind) ? row.kind : "generic";
@@ -39,6 +56,10 @@ export function rowToDataset(row: Record<string, unknown>): StoredDataset {
   };
 }
 
+function fromDbRow(row: DatasetRow): StoredDataset {
+  return rowToDataset(row as unknown as Record<string, unknown>);
+}
+
 export function datasetPayload(dataset: StoredDataset) {
   return {
     filename: dataset.filename,
@@ -55,16 +76,28 @@ export function datasetPayload(dataset: StoredDataset) {
   };
 }
 
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { supabase, user: null, error: "Sign in required." };
+function publicError(error: unknown): string {
+  if (!isNeonConfigured()) {
+    return "Neon is not configured. Set DATABASE_URL on Vercel, then redeploy.";
   }
-  return { supabase, user, error: null };
+  if (error instanceof Error && error.message) return error.message;
+  return "Could not load dataset from Neon.";
+}
+
+async function importFromSupabase(userId: string): Promise<StoredDataset | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("user_datasets")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return rowToDataset(data as Record<string, unknown>);
+  } catch {
+    return null;
+  }
 }
 
 export async function getStoredDataset(): Promise<{
@@ -72,24 +105,23 @@ export async function getStoredDataset(): Promise<{
   error: string | null;
 }> {
   try {
-    const { supabase, user, error: authError } = await requireUser();
-    if (!user) return { dataset: null, error: authError };
-    const { data, error } = await supabase
-      .from("user_datasets")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (error) {
-      if (error.code === "42P01") return { dataset: null, error: null };
-      return { dataset: null, error: error.message };
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { dataset: null, error: authError };
+
+    const sql = await getSql();
+    const rows = (await sql`
+      select * from public.user_datasets where user_id = ${userId} limit 1
+    `) as DatasetRow[];
+    if (rows[0]) return { dataset: fromDbRow(rows[0]), error: null };
+
+    const imported = await importFromSupabase(userId);
+    if (imported) {
+      await replaceStoredDataset(imported);
+      return { dataset: imported, error: null };
     }
-    if (!data) return { dataset: null, error: null };
-    return { dataset: rowToDataset(data as Record<string, unknown>), error: null };
+    return { dataset: null, error: null };
   } catch (error) {
-    return {
-      dataset: null,
-      error: error instanceof Error ? error.message : "Could not load dataset.",
-    };
+    return { dataset: null, error: publicError(error) };
   }
 }
 
@@ -97,39 +129,49 @@ export async function replaceStoredDataset(
   dataset: StoredDataset,
 ): Promise<{ dataset: StoredDataset | null; error: string | null }> {
   try {
-    const { supabase, user, error: authError } = await requireUser();
-    if (!user) return { dataset: null, error: authError };
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { dataset: null, error: authError };
+
     const payload = datasetPayload(dataset);
-    const { error } = await supabase.rpc("replace_user_dataset", { payload });
-    if (error) {
-      const { error: upsertError } = await supabase.from("user_datasets").upsert({
-        user_id: user.id,
-        filename: payload.filename,
-        kind: payload.kind,
-        type_from_name: payload.typeFromName,
-        type_from_headers: payload.typeFromHeaders,
-        name_header_match: payload.nameHeaderMatch,
-        reason: payload.reason,
-        time_field: payload.timeField,
-        category_field: payload.categoryField,
-        metric_fields: payload.metricFields,
-        headers: payload.headers,
-        rows: payload.rows,
-        updated_at: new Date().toISOString(),
-      });
-      if (upsertError) {
-        if (upsertError.code === "42P01") {
-          return { dataset, error: null };
-        }
-        return { dataset: null, error: upsertError.message };
-      }
-    }
+    const sql = await getSql();
+    await sql`
+      insert into public.user_datasets (
+        user_id, filename, kind, type_from_name, type_from_headers,
+        name_header_match, reason, time_field, category_field,
+        metric_fields, headers, rows, updated_at
+      )
+      values (
+        ${userId},
+        ${payload.filename},
+        ${payload.kind},
+        ${payload.typeFromName},
+        ${payload.typeFromHeaders},
+        ${payload.nameHeaderMatch},
+        ${payload.reason},
+        ${payload.timeField},
+        ${payload.categoryField},
+        ${JSON.stringify(payload.metricFields)}::jsonb,
+        ${JSON.stringify(payload.headers)}::jsonb,
+        ${JSON.stringify(payload.rows)}::jsonb,
+        now()
+      )
+      on conflict (user_id) do update set
+        filename = excluded.filename,
+        kind = excluded.kind,
+        type_from_name = excluded.type_from_name,
+        type_from_headers = excluded.type_from_headers,
+        name_header_match = excluded.name_header_match,
+        reason = excluded.reason,
+        time_field = excluded.time_field,
+        category_field = excluded.category_field,
+        metric_fields = excluded.metric_fields,
+        headers = excluded.headers,
+        rows = excluded.rows,
+        updated_at = now()
+    `;
     return { dataset, error: null };
   } catch (error) {
-    return {
-      dataset: null,
-      error: error instanceof Error ? error.message : "Could not save dataset.",
-    };
+    return { dataset: null, error: publicError(error) };
   }
 }
 
