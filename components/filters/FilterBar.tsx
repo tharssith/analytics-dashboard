@@ -11,7 +11,7 @@ export const toolbarButtonClass =
   "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-foreground transition-colors duration-150 hover:border-navy/40 hover:bg-background/80";
 
 const selectClass =
-  "h-9 rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none transition-colors duration-150 focus:border-navy";
+  "h-9 w-full rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none transition-colors duration-150 focus:border-navy";
 
 export function FilterBar({
   actionHref,
@@ -29,8 +29,8 @@ export function FilterBar({
   const clickFiltered = filters.department !== "All";
 
   return (
-    <div className="flex flex-wrap items-end gap-4">
-      <label className="flex min-w-[140px] flex-col gap-1.5 text-xs font-medium text-muted">
+    <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+      <label className="flex min-w-0 flex-1 basis-[calc(50%-0.4rem)] flex-col gap-1.5 text-xs font-medium text-muted sm:min-w-[140px] sm:flex-none sm:basis-auto">
         From
         <select
           value={filters.startMonth}
@@ -53,7 +53,7 @@ export function FilterBar({
         </select>
       </label>
 
-      <label className="flex min-w-[140px] flex-col gap-1.5 text-xs font-medium text-muted">
+      <label className="flex min-w-0 flex-1 basis-[calc(50%-0.4rem)] flex-col gap-1.5 text-xs font-medium text-muted sm:min-w-[140px] sm:flex-none sm:basis-auto">
         To
         <select
           value={filters.endMonth}
@@ -76,7 +76,7 @@ export function FilterBar({
         </select>
       </label>
 
-      <label className="flex min-w-[160px] flex-col gap-1.5 text-xs font-medium text-muted">
+      <label className="flex min-w-0 flex-1 basis-full flex-col gap-1.5 text-xs font-medium text-muted sm:min-w-[160px] sm:flex-none sm:basis-auto">
         Department
         <select
           value={filters.department}
@@ -105,7 +105,7 @@ export function FilterBar({
         </button>
       ) : null}
 
-      <div className="ml-auto flex flex-wrap items-center gap-3">
+      <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto">
         <Link href={actionHref} className={toolbarButtonClass}>
           {actionIcon === "back" ? (
             <ArrowLeft size={16} className="text-navy" />

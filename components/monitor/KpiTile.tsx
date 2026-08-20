@@ -30,7 +30,7 @@ export function KpiTile({
 }) {
   const interactive = tile.expandable;
   const className = [
-    "flex w-full flex-col gap-3 p-4 text-left transition-colors",
+    "flex w-full min-w-0 flex-col gap-3 p-4 text-left transition-colors",
     interactive ? "cursor-pointer hover:bg-background/80" : "cursor-default",
   ].join(" ");
 
@@ -56,7 +56,7 @@ export function KpiTile({
         <p className="mt-1 text-xs text-muted">{tile.context}</p>
       </div>
 
-      <div className={`-mx-1 h-10 rounded ${SURFACE[tile.status]}`}>
+      <div className={`-mx-1 h-10 min-w-0 rounded ${SURFACE[tile.status]}`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={tile.sparkline}

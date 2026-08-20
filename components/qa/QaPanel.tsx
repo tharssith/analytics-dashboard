@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Send } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquare, Send } from "lucide-react";
 import { useFilters } from "@/lib/filters-context";
 
 type Message = {
@@ -16,6 +16,7 @@ export function QaPanel({ configured }: { configured: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const basedOn = `Based on: ${dateRangeLabel} · ${departmentLabel}`;
 
@@ -27,6 +28,7 @@ export function QaPanel({ configured }: { configured: boolean }) {
     setQuestion("");
     setMessages((current) => [...current, { role: "user", text: trimmed }]);
     setPending(true);
+    if (!mobileOpen) setMobileOpen(true);
 
     try {
       const response = await fetch("/api/qa", {
@@ -77,80 +79,119 @@ export function QaPanel({ configured }: { configured: boolean }) {
   }
 
   return (
-    <aside className="flex h-full min-h-[32rem] w-full flex-col bg-white xl:min-h-screen xl:border-l xl:border-border">
-      <div className="border-b border-border px-4 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Ask the data</h2>
-        <p className="mt-1 text-xs leading-5 text-muted">
-          Answers use only the currently filtered records.
-        </p>
-      </div>
+    <>
+      {mobileOpen ? (
+        <button
+          type="button"
+          aria-label="Dismiss ask panel"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-30 bg-foreground/20 xl:hidden"
+        />
+      ) : null}
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {!configured ? (
-          <div className="rounded-md border border-border bg-background px-3 py-3 text-xs leading-5 text-muted">
-            Add your Grok key as <code className="font-medium text-foreground">GROK_API_KEY</code> in{" "}
-            <code className="font-medium text-foreground">.env.local</code>, then restart the
-            dev server.
+      <aside
+        className={`fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-border bg-white transition-[height] duration-200 xl:sticky xl:top-0 xl:z-auto xl:w-[340px] xl:shrink-0 xl:border-t-0 xl:border-l ${
+          mobileOpen ? "h-[min(72vh,36rem)]" : "h-12"
+        } xl:h-screen`}
+      >
+        <button
+          type="button"
+          onClick={() => setMobileOpen((open) => !open)}
+          className="flex h-12 w-full items-center justify-between px-4 text-left transition-colors duration-150 hover:bg-background/80 xl:hidden"
+          aria-expanded={mobileOpen}
+        >
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+            <MessageSquare size={16} className="text-navy" />
+            Ask the data
+          </span>
+          {mobileOpen ? (
+            <ChevronDown size={16} className="text-navy" />
+          ) : (
+            <ChevronUp size={16} className="text-navy" />
+          )}
+        </button>
+
+        <div
+          className={`min-h-0 flex-1 flex-col ${
+            mobileOpen ? "flex" : "hidden"
+          } xl:flex`}
+        >
+          <div className="hidden border-b border-border px-4 py-4 xl:block">
+            <h2 className="text-sm font-semibold text-foreground">Ask the data</h2>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              Answers use only the currently filtered records.
+            </p>
           </div>
-        ) : messages.length === 0 ? (
-          <p className="text-xs leading-5 text-muted">
-            Try “Which department is furthest from target?” or “Is attrition in the
-            red?”
-          </p>
-        ) : null}
 
-        {messages.map((message, index) => (
-          <div
-            key={`${message.role}-${index}`}
-            className={
-              message.role === "user"
-                ? "ml-6 rounded-md bg-navy px-3 py-2 text-xs leading-5 text-white"
-                : "mr-2 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-foreground"
-            }
-          >
-            <p className="whitespace-pre-wrap">{message.text}</p>
-            {message.role === "assistant" && message.basedOn ? (
-              <p className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted">
-                {message.basedOn}
+          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            {!configured ? (
+              <div className="rounded-md border border-border bg-background px-3 py-3 text-xs leading-5 text-muted">
+                Add your Grok key as{" "}
+                <code className="font-medium text-foreground">GROK_API_KEY</code> in{" "}
+                <code className="font-medium text-foreground">.env.local</code>, then
+                restart the dev server.
+              </div>
+            ) : messages.length === 0 ? (
+              <p className="text-xs leading-5 text-muted">
+                Try “Which department is furthest from target?” or “Is attrition in
+                the red?”
               </p>
             ) : null}
+
+            {messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={
+                  message.role === "user"
+                    ? "ml-6 rounded-md bg-navy px-3 py-2 text-xs leading-5 text-white"
+                    : "mr-2 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-foreground"
+                }
+              >
+                <p className="whitespace-pre-wrap">{message.text}</p>
+                {message.role === "assistant" && message.basedOn ? (
+                  <p className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted">
+                    {message.basedOn}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+
+            {pending ? (
+              <div className="mr-2 animate-pulse rounded-md border border-border bg-background px-3 py-3">
+                <div className="h-2.5 w-3/4 rounded bg-slate-200" />
+                <div className="mt-2 h-2.5 w-1/2 rounded bg-slate-200" />
+              </div>
+            ) : null}
+
+            {error ? <p className="text-xs text-rag-red">{error}</p> : null}
           </div>
-        ))}
 
-        {pending ? (
-          <div className="mr-2 animate-pulse rounded-md border border-border bg-background px-3 py-3">
-            <div className="h-2.5 w-3/4 rounded bg-slate-200" />
-            <div className="mt-2 h-2.5 w-1/2 rounded bg-slate-200" />
-          </div>
-        ) : null}
-
-        {error ? (
-          <p className="text-xs text-rag-red">{error}</p>
-        ) : null}
-      </div>
-
-      <form onSubmit={onSubmit} className="border-t border-border p-4">
-        <div className="flex items-end gap-2">
-          <textarea
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            onKeyDown={onKeyDown}
-            rows={3}
-            disabled={!configured || pending}
-            placeholder={configured ? "Ask about the current slice…" : "API key required"}
-            className="min-h-[72px] w-full resize-none rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted disabled:bg-background disabled:text-muted focus:border-navy"
-          />
-          <button
-            type="submit"
-            disabled={!configured || pending || !question.trim()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-navy text-white disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Send question"
-          >
-            <Send size={16} />
-          </button>
+          <form onSubmit={onSubmit} className="border-t border-border p-4">
+            <div className="flex items-end gap-2">
+              <textarea
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={onKeyDown}
+                rows={3}
+                disabled={!configured || pending}
+                placeholder={
+                  configured ? "Ask about the current slice…" : "API key required"
+                }
+                className="min-h-[72px] w-full resize-none rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-navy disabled:bg-background disabled:text-muted"
+              />
+              <button
+                type="submit"
+                disabled={!configured || pending || !question.trim()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-navy text-white transition-colors duration-150 hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Send question"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+            <p className="mt-2 text-[10px] text-muted">{basedOn}</p>
+          </form>
         </div>
-        <p className="mt-2 text-[10px] text-muted">{basedOn}</p>
-      </form>
-    </aside>
+      </aside>
+    </>
   );
 }

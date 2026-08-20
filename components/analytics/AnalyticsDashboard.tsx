@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { DepartmentBreakdownChart } from "@/components/diagnose/DiagnosePanel";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
+import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
 import { dataset, filterRecords } from "@/lib/data";
 import {
   diagnoseKpi,
@@ -43,7 +44,7 @@ export function AnalyticsDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-6 py-6 lg:px-8">
+    <div className="min-h-screen overflow-x-hidden bg-background px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
           {dataset.company.industry}
@@ -59,7 +60,7 @@ export function AnalyticsDashboard() {
 
       <div className="mb-5">
         <FilterBar
-          actionHref="/"
+          actionHref="/dashboard"
           actionLabel="← Back to Dashboard"
           actionIcon="back"
           extraActions={
@@ -104,6 +105,7 @@ export function AnalyticsDashboard() {
           );
         })}
       </div>
+      <StatusChangeToast />
     </div>
   );
 }

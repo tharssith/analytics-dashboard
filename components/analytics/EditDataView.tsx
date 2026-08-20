@@ -168,7 +168,7 @@ export function EditDataView() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-6 py-6 lg:px-8">
+    <div className="min-h-screen overflow-x-hidden bg-background px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
           {dataset.company.industry}
@@ -209,9 +209,9 @@ export function EditDataView() {
         </p>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="max-h-[calc(100vh-16rem)] overflow-auto">
-          <table className="min-w-full border-collapse text-left">
+      <Card className="min-w-0 overflow-hidden">
+        <div className="max-h-[calc(100vh-16rem)] overflow-x-auto overflow-y-auto">
+          <table className="w-max min-w-full border-collapse text-left">
             <thead className="sticky top-0 z-10 bg-white">
               <tr className="border-b border-border">
                 {COLUMNS.map((column) => (

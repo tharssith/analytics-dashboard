@@ -6,9 +6,11 @@ import { FilterBar } from "@/components/filters/FilterBar";
 import { KpiTile } from "@/components/monitor/KpiTile";
 import { ForecastChart } from "@/components/predict/ForecastChart";
 import { WhatIfSlider } from "@/components/predict/WhatIfSlider";
+import { DownloadReportButton } from "@/components/report/DownloadReportButton";
 import { QaPanel } from "@/components/qa/QaPanel";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
 import { dataset } from "@/lib/data";
 import { diagnoseKpi } from "@/lib/diagnose";
 import { useFilters } from "@/lib/filters-context";
@@ -66,8 +68,8 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
   }, [expanded, kpis.tiles]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background xl:flex-row">
-      <div className="min-w-0 flex-1 px-6 py-6 lg:px-8">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-background xl:flex-row">
+      <div className="min-w-0 flex-1 px-4 py-6 pb-20 sm:px-6 lg:px-8 xl:pb-6">
         <header className="mb-6">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
             {dataset.company.industry}
@@ -85,6 +87,7 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
           <FilterBar
             actionHref="/analytics"
             actionLabel="Analytics Dashboard →"
+            extraActions={<DownloadReportButton />}
           />
         </div>
 
@@ -136,11 +139,8 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
         )}
       </div>
 
-      <div className="w-full shrink-0 border-t border-border xl:w-[340px] xl:border-t-0">
-        <div className="xl:sticky xl:top-0 xl:h-screen">
-          <QaPanel configured={qaConfigured} />
-        </div>
-      </div>
+      <QaPanel configured={qaConfigured} />
+      <StatusChangeToast />
     </div>
   );
 }
