@@ -35,14 +35,180 @@ export type CsvParseResult = {
 
 const NOT_FOUND = "not found";
 
+const FIELD_ALIASES: Record<RequiredHeader, string[]> = {
+  month: [
+    "month",
+    "period",
+    "year month",
+    "month year",
+    "calendar month",
+    "snapshot month",
+    "month ending",
+    "as of",
+    "as of month",
+    "yyyymm",
+    "yyyy mm",
+  ],
+  department: [
+    "department",
+    "dept",
+    "team",
+    "division",
+    "business unit",
+    "org unit",
+    "cost center",
+    "function",
+    "department name",
+    "dept name",
+  ],
+  headcount: [
+    "headcount",
+    "head count",
+    "emp count",
+    "employee count",
+    "employees",
+    "ending hc",
+    "ending headcount",
+    "fte",
+    "staff",
+    "hc",
+  ],
+  target_headcount: [
+    "target headcount",
+    "target hc",
+    "target head count",
+    "plan hc",
+    "planned hc",
+    "budgeted hc",
+    "hc target",
+    "headcount target",
+  ],
+  new_hires: [
+    "new hires",
+    "new hire",
+    "hires",
+    "hired",
+    "joiners",
+    "starts",
+    "hire count",
+  ],
+  attrition_count: [
+    "attrition count",
+    "attrition",
+    "exits",
+    "separations",
+    "leavers",
+    "turnover count",
+    "terms",
+    "terminations",
+  ],
+  time_to_hire_days: [
+    "time to hire days",
+    "time to hire",
+    "days to hire",
+    "time to fill",
+    "tth",
+    "ttf",
+    "hire days",
+  ],
+  referral_pct: [
+    "referral pct",
+    "referral %",
+    "referral",
+    "referrals",
+    "referral percent",
+    "source referral",
+  ],
+  job_board_pct: [
+    "job board pct",
+    "job board %",
+    "job board",
+    "jobboard",
+    "boards",
+    "job boards",
+    "source job board",
+  ],
+  agency_pct: [
+    "agency pct",
+    "agency %",
+    "agency",
+    "agencies",
+    "recruiter pct",
+    "agency percent",
+    "source agency",
+  ],
+};
+
 function normalizeHeaderKey(value: string): string {
   return value
     .replace(/^\uFEFF/, "")
     .replace(/[\u00a0\u2000-\u200b]/g, " ")
+    .replace(/%/g, " pct ")
     .replace(/[_-]+/g, " ")
+    .replace(/[^a-zA-Z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+}
+
+function headerTokens(value: string): string[] {
+  return normalizeHeaderKey(value).split(" ").filter(Boolean);
+}
+
+function aliasScore(field: RequiredHeader, header: string): number {
+  const normalized = normalizeHeaderKey(header);
+  if (!normalized) return 0;
+  const tokens = headerTokens(header);
+  const names = [field.replace(/_/g, " "), ...FIELD_ALIASES[field]];
+  let best = 0;
+  for (const name of names) {
+    const alias = normalizeHeaderKey(name);
+    const aliasTokens = headerTokens(name);
+    if (!alias || aliasTokens.length === 0) continue;
+    if (normalized === alias) {
+      best = Math.max(best, alias === normalizeHeaderKey(field) ? 100 : 96);
+      continue;
+    }
+    if (aliasTokens.every((token) => tokens.includes(token))) {
+      const extra = tokens.length - aliasTokens.length;
+      const score =
+        aliasTokens.length === 1 && alias.length <= 3
+          ? extra === 0
+            ? 88
+            : 0
+          : extra === 0
+            ? 90
+            : alias.length >= 8
+              ? 78
+              : 70;
+      best = Math.max(best, score);
+    }
+  }
+  return best;
+}
+
+export function suggestColumnMapping(headers: string[]): ColumnMapping {
+  const mapping = emptyMapping();
+  const used = new Set<string>();
+  const candidates: Array<{
+    field: RequiredHeader;
+    header: string;
+    score: number;
+  }> = [];
+  for (const field of REQUIRED_HEADERS) {
+    for (const header of headers) {
+      const score = aliasScore(field, header);
+      if (score <= 0) continue;
+      candidates.push({ field, header, score });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score || a.field.localeCompare(b.field));
+  for (const candidate of candidates) {
+    if (mapping[candidate.field] || used.has(candidate.header)) continue;
+    mapping[candidate.field] = candidate.header;
+    used.add(candidate.header);
+  }
+  return mapping;
 }
 
 export function matchExistingHeader(
@@ -107,11 +273,7 @@ export function exactHeaderMatch(
 }
 
 export function mappingFromExactHeaders(headers: string[]): ColumnMapping {
-  const mapping = emptyMapping();
-  for (const field of REQUIRED_HEADERS) {
-    mapping[field] = exactHeaderMatch(field, headers);
-  }
-  return mapping;
+  return suggestColumnMapping(headers);
 }
 
 export function sanitizeColumnMapping(
@@ -119,13 +281,16 @@ export function sanitizeColumnMapping(
   headers: string[],
 ): ColumnMapping {
   const source = unwrapMappingObject(suggested);
-  const mapping = mappingFromExactHeaders(headers);
+  const mapping = emptyMapping();
   for (const field of REQUIRED_HEADERS) {
-    if (mapping[field]) continue;
     const value = source[field];
     if (typeof value !== "string") continue;
     const matched = matchExistingHeader(value, headers);
     if (matched) mapping[field] = matched;
+  }
+  const local = suggestColumnMapping(headers);
+  for (const field of REQUIRED_HEADERS) {
+    if (!mapping[field]) mapping[field] = local[field];
   }
   return mapping;
 }

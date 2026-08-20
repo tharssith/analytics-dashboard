@@ -2,8 +2,11 @@ import { getGrokApiKey, GROK_MODEL, XAI_CHAT_URL, extractJson } from "@/lib/grok
 import {
   REQUIRED_HEADERS,
   sanitizeColumnMapping,
+  suggestColumnMapping,
   type RequiredHeader,
 } from "@/lib/csv";
+
+export const maxDuration = 30;
 
 const MAX_HEADERS = 80;
 
@@ -37,16 +40,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "headers_required" }, { status: 400 });
   }
 
-  const fallback = sanitizeColumnMapping({}, headers);
+  const fallback = suggestColumnMapping(headers);
   const apiKey = getGrokApiKey();
   if (!apiKey) {
     return Response.json(mappingPayload(fallback));
   }
 
   const system = [
-    "You map CSV column headers to required HR analytics fields.",
+    "You map spreadsheet column headers to required HR analytics fields.",
     "You are given ONLY header names. You will never receive data values, and you must not ask for them.",
-    "Match by naming only. If a match is ambiguous, return \"not found\".",
+    "Match by naming and common synonyms. Examples: Period→month, Dept→department, Emp Count→headcount, Target HC→target_headcount, Hires→new_hires, Exits→attrition_count, Days to Hire→time_to_hire_days, Referral %→referral_pct.",
+    "Prefer the closest related header over \"not found\". Use \"not found\" only when no header is related to that field.",
     "Do not invent header names. Use the exact header string from the provided list, or \"not found\".",
     `Required fields: ${REQUIRED_HEADERS.join(", ")}.`,
     "Return JSON only, with exactly those keys.",
@@ -61,6 +65,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: GROK_MODEL,
+        temperature: 0,
         messages: [
           { role: "system", content: system },
           { role: "user", content: JSON.stringify({ headers }) },

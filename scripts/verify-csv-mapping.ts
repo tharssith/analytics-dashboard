@@ -4,6 +4,7 @@ import {
   applyColumnMapping,
   parseRawCsv,
   sanitizeColumnMapping,
+  suggestColumnMapping,
   validateMappedRows,
 } from "../lib/csv";
 import { parseRawXlsx } from "../lib/spreadsheet";
@@ -132,3 +133,79 @@ assert.equal(fuzzy.department, "Dept");
 assert.equal(fuzzy.headcount, "Emp Count");
 assert.equal(fuzzy.target_headcount, "Target HC");
 console.log("mapping matches xlsx headers case-insensitively");
+
+const local = suggestColumnMapping(titledRaw.headers);
+assert.equal(local.month, "Period");
+assert.equal(local.department, "Dept");
+assert.equal(local.headcount, "Emp Count");
+assert.equal(local.target_headcount, "Target HC");
+assert.equal(local.new_hires, "Hires");
+assert.equal(local.attrition_count, "Exits");
+assert.equal(local.time_to_hire_days, "Days to Hire");
+assert.equal(local.referral_pct, "Referral %");
+assert.equal(local.job_board_pct, "Job Board %");
+assert.equal(local.agency_pct, "Agency %");
+console.log("local aliases map Period/Dept/Emp Count without Grok");
+
+const salesSheet = XLSX.utils.aoa_to_sheet([
+  ["Sample Sales Data - Styles 2"],
+  [
+    "Order Date",
+    "Segment",
+    "Country",
+    "City",
+    "Region",
+    "Category",
+    "Sales",
+    "Quantity",
+    "Discount",
+    "Profit",
+  ],
+  [
+    "2014-11-08",
+    "Consumer",
+    "United States",
+    "Henderson",
+    "South",
+    "Furniture",
+    261.96,
+    2,
+    0,
+    41.91,
+  ],
+  [
+    "2014-11-09",
+    "Corporate",
+    "United States",
+    "Henderson",
+    "South",
+    "Office Supplies",
+    14.62,
+    2,
+    0,
+    6.87,
+  ],
+]);
+salesSheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }];
+const salesBook = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(salesBook, salesSheet, "Orders");
+const decoy = XLSX.utils.aoa_to_sheet([
+  ["Style", "Fill", "Font", "Border", "Theme", "Palette", "Preview"],
+  ["A", "B", "C", "D", "E", "F", "G"],
+]);
+XLSX.utils.book_append_sheet(salesBook, decoy, "Styles");
+const salesRaw = parseRawXlsx(
+  XLSX.write(salesBook, { type: "array", bookType: "xlsx" }),
+);
+assert.deepEqual(salesRaw.headers.slice(0, 3), [
+  "Order Date",
+  "Segment",
+  "Country",
+]);
+assert.equal(salesRaw.rows[0].Segment, "Consumer");
+assert.equal(salesRaw.rows.length, 2);
+const salesMap = suggestColumnMapping(salesRaw.headers);
+assert.equal(salesMap.headcount, "");
+assert.equal(salesMap.target_headcount, "");
+assert.equal(salesMap.new_hires, "");
+console.log("styled sales workbook keeps Order Date headers and does not fake HR matches");

@@ -14,8 +14,8 @@ import {
   emptyMapping,
   isMappingComplete,
   mappingFillCount,
-  mappingFromExactHeaders,
   sanitizeColumnMapping,
+  suggestColumnMapping,
   type ColumnMapping,
   type RawCsvRow,
   type RequiredHeader,
@@ -116,9 +116,11 @@ export function UploadDataView() {
     setSaveError(null);
     setMappingError(null);
     if (nextMode === "manual") {
-      setMapping(mappingFromExactHeaders(fileHeaders));
+      setMapping(suggestColumnMapping(fileHeaders));
       return;
     }
+    const local = suggestColumnMapping(fileHeaders);
+    setMapping(local);
     setMappingLoading(true);
     const requestId = mapRequest.current + 1;
     mapRequest.current = requestId;
@@ -148,10 +150,12 @@ export function UploadDataView() {
       });
       if (mapRequest.current !== requestId) return;
       if (!response.ok) {
-        setMapping(mappingFromExactHeaders(fileHeaders));
-        setMappingError(
-          "AI couldn't determine matches — please map manually below",
-        );
+        setMapping(local);
+        if (mappingFillCount(local) === 0) {
+          setMappingError(
+            "AI couldn't determine matches — please map manually below",
+          );
+        }
         return;
       }
       const next = sanitizeColumnMapping(payload, fileHeaders);
@@ -164,10 +168,12 @@ export function UploadDataView() {
     } catch (error) {
       console.info("[upload] map-columns failed", error);
       if (mapRequest.current !== requestId) return;
-      setMapping(mappingFromExactHeaders(fileHeaders));
-      setMappingError(
-        "AI couldn't determine matches — please map manually below",
-      );
+      setMapping(local);
+      if (mappingFillCount(local) === 0) {
+        setMappingError(
+          "AI couldn't determine matches — please map manually below",
+        );
+      }
     } finally {
       if (mapRequest.current === requestId) setMappingLoading(false);
     }

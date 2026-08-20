@@ -24,6 +24,10 @@ export function ColumnMappingForm({
   onContinue: () => void;
 }) {
   const ready = isMappingComplete(mapping, headers);
+  const preview =
+    headers.length > 0
+      ? headers.slice(0, 10).join(", ") + (headers.length > 10 ? "…" : "")
+      : "";
 
   return (
     <Card className="max-w-xl p-5">
@@ -35,9 +39,18 @@ export function ColumnMappingForm({
       </p>
       {loading ? (
         <p className="mt-4 text-sm text-muted">Matching column names…</p>
-      ) : (
-        <div className="mt-5 space-y-3">
-          {error ? <p className="text-sm text-rag-red">{error}</p> : null}
+      ) : null}
+      <div className="mt-5 space-y-3">
+          {error ? (
+            <div className="space-y-1">
+              <p className="text-sm text-rag-red">{error}</p>
+              {preview ? (
+                <p className="text-xs leading-5 text-muted">
+                  Detected columns: {preview}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-2 text-xs font-medium text-muted">
             <span>Required field</span>
             <span>Matched column</span>
@@ -54,6 +67,7 @@ export function ColumnMappingForm({
                   onChange({ ...mapping, [field]: event.target.value })
                 }
                 className={selectClass}
+                disabled={loading}
               >
                 <option value="">Select column</option>
                 {headers.map((header) => (
@@ -72,8 +86,7 @@ export function ColumnMappingForm({
           >
             {busy ? "Saving…" : "Continue with this mapping"}
           </button>
-        </div>
-      )}
+      </div>
     </Card>
   );
 }
