@@ -1,113 +1,267 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
+import { AiFixReview, type SuggestedFix } from "@/components/upload/AiFixReview";
+import { ChoiceStep } from "@/components/upload/ChoiceStep";
+import { ColumnMappingForm } from "@/components/upload/ColumnMappingForm";
+import { ManualFixTable } from "@/components/upload/ManualFixTable";
+import { navyButtonClass } from "@/components/upload/upload-ui";
 import {
-  REQUIRED_HEADERS,
   applyColumnMapping,
   emptyMapping,
   isMappingComplete,
+  mappingFromExactHeaders,
   sanitizeColumnMapping,
-  validateMappedRows,
   type ColumnMapping,
   type RawCsvRow,
+  type RequiredHeader,
 } from "@/lib/csv";
-import { dataset } from "@/lib/data";
+import { dataset, uniqueDepartments } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
-import type { HrRecord } from "@/lib/types";
+import {
+  applyValueFixes,
+  failingRowIds,
+  groupIssues,
+  inspectRows,
+  mappedRowsFromRaw,
+  rowsToRecords,
+  type MappedRow,
+} from "@/lib/upload-validate";
 
-const selectClass =
-  "h-9 w-full rounded-md border border-border bg-white px-2.5 text-sm font-medium text-foreground outline-none transition-colors duration-150 focus:border-navy";
+type Mode = "ai" | "manual";
+type Stage =
+  | "choice"
+  | "mapping"
+  | "ai-fixes"
+  | "manual-fix"
+  | "ready"
+  | "saved";
 
 export function UploadDataView() {
   const { replaceSourceRecords } = useFilters();
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<RawCsvRow[]>([]);
+  const [mode, setMode] = useState<Mode | null>(null);
+  const [stage, setStage] = useState<Stage>("choice");
   const [mapping, setMapping] = useState<ColumnMapping>(emptyMapping);
   const [mappingLoading, setMappingLoading] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [pendingRecords, setPendingRecords] = useState<HrRecord[] | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [mappedRows, setMappedRows] = useState<MappedRow[]>([]);
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<SuggestedFix[]>([]);
+  const [aiSkipped, setAiSkipped] = useState(0);
+  const [audit, setAudit] = useState<string[]>([]);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const mapRequest = useRef(0);
 
-  function resetFileState() {
-    setHeaders([]);
-    setRawRows([]);
+  function resetWorking() {
+    setMode(null);
+    setStage("choice");
     setMapping(emptyMapping());
-    setPendingRecords(null);
-    setConfirming(false);
-    setWarnings([]);
     setMappingLoading(false);
+    setMappedRows([]);
+    setFlaggedIds(new Set());
+    setAiSuggestions([]);
+    setAiSkipped(0);
+    setAiLoading(false);
+    setAudit([]);
+    setSaveError(null);
+    setSavedLabel(null);
   }
 
   async function onFile(file: File) {
     setFileName(file.name);
-    resetFileState();
+    resetWorking();
+    setParseError(null);
+    setHeaders([]);
+    setRawRows([]);
     try {
       const { parseRawUpload } = await import("@/lib/spreadsheet");
       const raw = await parseRawUpload(file);
-      setErrors(raw.errors);
-      if (raw.errors.length > 0 && raw.rows.length === 0) return;
-
+      if (raw.errors.length > 0 && raw.rows.length === 0) {
+        setParseError(raw.errors[0] ?? "Could not parse that file.");
+        return;
+      }
       setHeaders(raw.headers);
       setRawRows(raw.rows);
-      setMappingLoading(true);
-      const requestId = mapRequest.current + 1;
-      mapRequest.current = requestId;
-
-      try {
-        const response = await fetch("/api/map-columns", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ headers: raw.headers }),
-        });
-        const payload = (await response.json()) as Record<string, unknown>;
-        if (mapRequest.current !== requestId) return;
-        setMapping(sanitizeColumnMapping(payload, raw.headers));
-      } catch {
-        if (mapRequest.current !== requestId) return;
-        setMapping(sanitizeColumnMapping({}, raw.headers));
-        setErrors([
-          "Could not suggest column matches. Pick each required field from the dropdowns.",
-        ]);
-      } finally {
-        if (mapRequest.current === requestId) setMappingLoading(false);
-      }
+      setStage("choice");
     } catch {
-      setErrors(["Could not read that file. Use a CSV or Excel (.xlsx) spreadsheet."]);
+      setParseError("Could not read that file. Use a CSV or Excel (.xlsx) spreadsheet.");
     }
   }
 
-  function applyMapping() {
-    if (!isMappingComplete(mapping, headers)) {
-      setErrors(["Match every required field to a column from the file."]);
+  async function chooseMode(nextMode: Mode) {
+    setMode(nextMode);
+    setStage("mapping");
+    setSaveError(null);
+    if (nextMode === "manual") {
+      setMapping(mappingFromExactHeaders(headers));
       return;
     }
-    const mapped = applyColumnMapping(rawRows, mapping);
-    const parsed = validateMappedRows(mapped);
-    setErrors(parsed.errors);
-    setWarnings(parsed.warnings);
-    setPendingRecords(parsed.errors.length === 0 ? parsed.records : null);
-  }
-
-  async function confirmReplace() {
-    if (!pendingRecords) return;
-    setBusy(true);
-    const ok = await replaceSourceRecords(pendingRecords);
-    setBusy(false);
-    if (ok) {
-      setFileName(null);
-      setErrors([]);
-      resetFileState();
+    setMappingLoading(true);
+    const requestId = mapRequest.current + 1;
+    mapRequest.current = requestId;
+    try {
+      const response = await fetch("/api/map-columns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ headers }),
+      });
+      const payload = (await response.json()) as Record<string, unknown>;
+      if (mapRequest.current !== requestId) return;
+      setMapping(sanitizeColumnMapping(payload, headers));
+    } catch {
+      if (mapRequest.current !== requestId) return;
+      setMapping(mappingFromExactHeaders(headers));
+    } finally {
+      if (mapRequest.current === requestId) setMappingLoading(false);
     }
   }
 
-  const mappingReady = headers.length > 0 && !mappingLoading;
-  const canContinue = mappingReady && isMappingComplete(mapping, headers);
+  async function continueMapping() {
+    if (!isMappingComplete(mapping, headers)) return;
+    const rows = mappedRowsFromRaw(applyColumnMapping(rawRows, mapping));
+    setMappedRows(rows);
+    const mappedCount = Object.values(mapping).filter(Boolean).length;
+    const prefix = mode === "ai" ? "AI" : "Manual";
+    const nextAudit = [`${prefix}: mapped ${mappedCount} columns`];
+    const issues = inspectRows(rows);
+    if (issues.length === 0) {
+      setAudit(nextAudit);
+      setStage("ready");
+      return;
+    }
+    setFlaggedIds(failingRowIds(issues));
+    if (mode === "manual") {
+      setAudit(nextAudit);
+      setStage("manual-fix");
+      return;
+    }
+    setAudit(nextAudit);
+    setStage("ai-fixes");
+    setAiLoading(true);
+    try {
+      const response = await fetch("/api/fix-values", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groups: groupIssues(issues) }),
+      });
+      const payload = (await response.json()) as {
+        groups?: Array<{
+          field?: RequiredHeader;
+          fixes?: Array<{ original?: string; suggested?: string | null }>;
+        }>;
+      };
+      const suggestions: SuggestedFix[] = [];
+      let skipped = 0;
+      for (const group of payload.groups ?? []) {
+        if (!group.field) continue;
+        for (const fix of group.fixes ?? []) {
+          if (typeof fix.original !== "string") continue;
+          if (typeof fix.suggested === "string" && fix.suggested.length > 0) {
+            suggestions.push({
+              field: group.field,
+              original: fix.original,
+              suggested: fix.suggested,
+            });
+          } else {
+            skipped += 1;
+          }
+        }
+      }
+      setAiSuggestions(suggestions);
+      setAiSkipped(skipped);
+    } catch {
+      setAiSuggestions([]);
+      setAiSkipped(inspectRows(rows).length);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function applyAiFixes() {
+    let nextRows = mappedRows;
+    const counts = new Map<RequiredHeader, number>();
+    for (const field of new Set(aiSuggestions.map((fix) => fix.field))) {
+      const fixes = aiSuggestions.filter((fix) => fix.field === field);
+      const before = inspectRows(nextRows).filter((issue) => issue.field === field)
+        .length;
+      nextRows = applyValueFixes(nextRows, field, fixes);
+      const after = inspectRows(nextRows).filter((issue) => issue.field === field)
+        .length;
+      const fixed = Math.max(0, before - after);
+      if (fixed > 0) counts.set(field, fixed);
+    }
+    setMappedRows(nextRows);
+    const remaining = inspectRows(nextRows);
+    setFlaggedIds(failingRowIds(remaining));
+    const fixNotes = [...counts.entries()].map(
+      ([field, count]) => `fixed ${count} ${field} value${count === 1 ? "" : "s"}`,
+    );
+    setAudit((current) =>
+      fixNotes.length > 0 ? [...current, `AI: ${fixNotes.join(", ")}`] : current,
+    );
+    setStage(remaining.length === 0 ? "ready" : "manual-fix");
+  }
+
+  function openManualFix() {
+    setFlaggedIds(failingRowIds(inspectRows(mappedRows)));
+    setStage("manual-fix");
+  }
+
+  function onManualChange(next: MappedRow[]) {
+    setMappedRows(next);
+  }
+
+  async function save() {
+    const converted = rowsToRecords(mappedRows);
+    if (converted.errors.length > 0) {
+      setSaveError(converted.errors[0] ?? "Some rows still fail validation.");
+      setFlaggedIds(failingRowIds(inspectRows(mappedRows)));
+      setStage("manual-fix");
+      return;
+    }
+    setBusy(true);
+    setSaveError(null);
+    const ok = await replaceSourceRecords(converted.records);
+    setBusy(false);
+    if (!ok) {
+      setSaveError("Could not save records.");
+      return;
+    }
+    const remainingFlagged = [...flaggedIds].filter((id) =>
+      inspectRows(mappedRows).some((issue) => issue.rowId === id),
+    ).length;
+    const manualFixed = Math.max(0, flaggedIds.size - remainingFlagged);
+    if (mode === "manual") {
+      setAudit((current) => [
+        ...current,
+        `Manual: fixed ${manualFixed} row${manualFixed === 1 ? "" : "s"} by hand`,
+      ]);
+    } else if (manualFixed > 0) {
+      setAudit((current) => [
+        ...current,
+        `AI: ${manualFixed} remaining cell group${manualFixed === 1 ? "" : "s"} fixed manually`,
+      ]);
+    }
+    const depts = uniqueDepartments(converted.records);
+    setSavedLabel(
+      `Loaded ${converted.records.length} records for ${depts.length} department${
+        depts.length === 1 ? "" : "s"
+      }.`,
+    );
+    setStage("saved");
+  }
+
+  const issuesLeft = inspectRows(mappedRows).length;
+  const canSave = mappedRows.length > 0 && issuesLeft === 0 && !busy;
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background px-4 py-6 sm:px-6 lg:px-8">
@@ -119,8 +273,8 @@ export function UploadDataView() {
           Upload data
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Replace your saved dataset with a CSV or Excel file. Department names
-          are read from the file, not limited to the original four teams.
+          Replace your saved dataset with a CSV or Excel file. Choose AI-assisted
+          or fully manual preparation.
         </p>
       </header>
 
@@ -132,7 +286,7 @@ export function UploadDataView() {
         />
       </div>
 
-      <Card className="max-w-xl p-5">
+      <Card className="mb-5 max-w-xl p-5">
         <label className="flex cursor-pointer flex-col gap-2">
           <span className="text-xs font-medium text-muted">CSV or Excel file</span>
           <input
@@ -145,119 +299,82 @@ export function UploadDataView() {
             }}
           />
         </label>
-        <p className="mt-3 text-xs leading-5 text-muted">
-          Required columns: month, department, headcount, target_headcount,
-          new_hires, attrition_count, time_to_hire_days, referral_pct,
-          job_board_pct, agency_pct.
-        </p>
         {fileName ? (
           <p className="mt-3 text-sm text-foreground">
             {fileName}
             {rawRows.length > 0 ? ` · ${rawRows.length} rows` : ""}
           </p>
         ) : null}
-
-        {mappingLoading ? (
-          <p className="mt-4 text-sm text-muted">Matching column names…</p>
-        ) : null}
-
-        {mappingReady ? (
-          <div className="mt-5 space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-xs font-medium text-muted">
-              <span>Required field</span>
-              <span>Matched column</span>
-            </div>
-            {REQUIRED_HEADERS.map((field) => (
-              <label
-                key={field}
-                className="grid grid-cols-2 items-center gap-2 text-sm text-foreground"
-              >
-                <span className="truncate font-medium">{field}</span>
-                <select
-                  value={mapping[field]}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setMapping((current) => ({ ...current, [field]: value }));
-                    setPendingRecords(null);
-                  }}
-                  className={selectClass}
-                >
-                  <option value="">Select column</option>
-                  {headers.map((header) => (
-                    <option key={`${field}-${header}`} value={header}>
-                      {header}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-            <p className="text-xs leading-5 text-muted">
-              This only renames columns — your data values are never changed or
-              sent to the AI.
-            </p>
-            <button
-              type="button"
-              disabled={!canContinue}
-              onClick={applyMapping}
-              className="inline-flex h-9 items-center rounded-md bg-navy px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Continue with this mapping
-            </button>
-          </div>
-        ) : null}
-
-        {errors.length > 0 ? (
-          <ul className="mt-4 space-y-1 text-xs text-rag-red">
-            {errors.slice(0, 8).map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        ) : null}
-        {warnings.length > 0 ? (
-          <ul className="mt-3 space-y-1 text-xs text-rag-amber">
-            {warnings.slice(0, 6).map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        ) : null}
-
-        {pendingRecords && errors.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            className="mt-5 inline-flex h-9 items-center rounded-md bg-navy px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90"
-          >
-            Replace my data · {pendingRecords.length} rows
-          </button>
-        ) : null}
+        {parseError ? <p className="mt-3 text-sm text-rag-red">{parseError}</p> : null}
       </Card>
 
-      {confirming ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 px-4">
-          <Card className="w-full max-w-md p-5">
-            <p className="text-sm leading-6 text-foreground">
-              This will replace your current data — continue?
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => void confirmReplace()}
-                disabled={busy}
-                className="inline-flex h-9 items-center rounded-md bg-navy px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90 disabled:opacity-40"
-              >
-                {busy ? "Replacing…" : "Continue"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                disabled={busy}
-                className={toolbarButtonClass}
-              >
-                Cancel
-              </button>
-            </div>
-          </Card>
+      {rawRows.length > 0 && stage === "choice" ? (
+        <ChoiceStep
+          fileName={fileName ?? "File"}
+          rowCount={rawRows.length}
+          onChoose={(next) => void chooseMode(next)}
+        />
+      ) : null}
+
+      {stage === "mapping" && mode ? (
+        <ColumnMappingForm
+          headers={headers}
+          mapping={mapping}
+          loading={mappingLoading}
+          aiAssisted={mode === "ai"}
+          onChange={setMapping}
+          onContinue={() => void continueMapping()}
+        />
+      ) : null}
+
+      {stage === "ai-fixes" ? (
+        <AiFixReview
+          loading={aiLoading}
+          suggestions={aiSuggestions}
+          skipped={aiSkipped}
+          onApply={applyAiFixes}
+          onSkip={openManualFix}
+        />
+      ) : null}
+
+      {stage === "manual-fix" ? (
+        <div className="space-y-4">
+          <ManualFixTable
+            rows={mappedRows}
+            flaggedIds={flaggedIds}
+            onChange={onManualChange}
+            onCancel={resetWorking}
+          />
+          {saveError ? <p className="text-sm text-rag-red">{saveError}</p> : null}
         </div>
+      ) : null}
+
+      {stage === "ready" || (stage === "manual-fix" && issuesLeft === 0) ? (
+        <div className="mt-5 max-w-xl">
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={() => void save()}
+            className={navyButtonClass}
+          >
+            {busy ? "Saving…" : "Save and Continue"}
+          </button>
+        </div>
+      ) : null}
+
+      {stage === "saved" && savedLabel ? (
+        <Card className="mt-5 max-w-xl p-5">
+          <p className="text-sm text-foreground">{savedLabel}</p>
+          <Link href="/dashboard" className={`${toolbarButtonClass} mt-4`}>
+            View Dashboard →
+          </Link>
+        </Card>
+      ) : null}
+
+      {audit.length > 0 ? (
+        <p className="mt-6 max-w-2xl text-xs leading-5 text-muted">
+          {audit.join(" · ")}
+        </p>
       ) : null}
     </div>
   );

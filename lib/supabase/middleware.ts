@@ -9,6 +9,7 @@ const PROTECTED_PREFIXES = [
   "/api/records",
   "/api/qa",
   "/api/map-columns",
+  "/api/fix-values",
 ];
 
 function isProtectedPath(pathname: string): boolean {

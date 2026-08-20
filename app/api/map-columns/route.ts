@@ -1,30 +1,11 @@
-import { getGrokApiKey } from "@/lib/grok";
+import { getGrokApiKey, GROK_MODEL, XAI_CHAT_URL, extractJson } from "@/lib/grok";
 import {
   REQUIRED_HEADERS,
   sanitizeColumnMapping,
   type RequiredHeader,
 } from "@/lib/csv";
 
-const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
-const GROK_MODEL = "grok-4.6";
 const MAX_HEADERS = 80;
-
-function extractJsonObject(text: string): Record<string, unknown> | null {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = (fenced?.[1] ?? text).trim();
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    const parsed = JSON.parse(candidate.slice(start, end + 1)) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
 
 function mappingPayload(mapping: Record<RequiredHeader, string>) {
   const payload: Record<RequiredHeader, string> = { ...mapping };
@@ -82,27 +63,22 @@ export async function POST(request: Request) {
         model: GROK_MODEL,
         messages: [
           { role: "system", content: system },
-          {
-            role: "user",
-            content: JSON.stringify({ headers }),
-          },
+          { role: "user", content: JSON.stringify({ headers }) },
         ],
       }),
     });
-
     const payload = (await response.json()) as {
-      error?: string | { message?: string };
       choices?: Array<{ message?: { content?: string } }>;
     };
-
-    if (!response.ok) {
-      return Response.json(mappingPayload(fallback));
-    }
-
-    const content = payload.choices?.[0]?.message?.content?.trim() ?? "";
-    const parsed = extractJsonObject(content) ?? {};
-    const mapping = sanitizeColumnMapping(parsed, headers);
-    return Response.json(mappingPayload(mapping));
+    if (!response.ok) return Response.json(mappingPayload(fallback));
+    const parsed = extractJson(payload.choices?.[0]?.message?.content ?? "");
+    const object =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    return Response.json(
+      mappingPayload(sanitizeColumnMapping(object, headers)),
+    );
   } catch {
     return Response.json(mappingPayload(fallback));
   }
