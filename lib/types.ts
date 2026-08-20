@@ -1,11 +1,13 @@
-export const DEPARTMENTS = [
+export const SEED_DEPARTMENTS = [
   "Engineering",
   "Marketing",
   "Sales",
   "Support",
 ] as const;
 
-export type Department = (typeof DEPARTMENTS)[number];
+export const DEPARTMENTS = SEED_DEPARTMENTS;
+
+export type Department = string;
 
 export type DepartmentFilter = Department | "All";
 
@@ -16,6 +18,7 @@ export type SourceOfHire = {
 };
 
 export type HrRecord = {
+  id?: string;
   month: string;
   department: Department;
   headcount: number;

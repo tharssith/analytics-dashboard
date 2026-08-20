@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
 import { cloneRecords, dataset } from "@/lib/data";
@@ -31,7 +31,7 @@ const COLUMNS: { key: NumericKey | "month" | "department"; label: string }[] = [
 ];
 
 function rowKey(record: HrRecord): string {
-  return `${record.month}::${record.department}`;
+  return record.id ?? `${record.month}::${record.department}`;
 }
 
 function readValue(record: HrRecord, key: NumericKey): number | null {
@@ -73,6 +73,11 @@ function NumericCell({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value == null ? "" : String(value));
 
+  useEffect(() => {
+    if (editing) return;
+    setDraft(value == null ? "" : String(value));
+  }, [value, editing]);
+
   function startEdit() {
     setDraft(value == null ? "" : String(value));
     setEditing(true);
@@ -82,11 +87,12 @@ function NumericCell({
     setEditing(false);
     const trimmed = draft.trim();
     if (allowEmpty && trimmed === "") {
-      onCommit(null);
+      if (value !== null) onCommit(null);
       return;
     }
     const parsed = Number(trimmed);
     if (!Number.isFinite(parsed) || parsed < 0) return;
+    if (parsed === value) return;
     onCommit(parsed);
   }
 
@@ -129,9 +135,19 @@ function NumericCell({
 }
 
 export function EditDataView() {
-  const { sourceRecords, saveSourceRecords, resetSourceRecords } = useFilters();
+  const { sourceRecords, persistRecord, resetSourceRecords } = useFilters();
   const [draft, setDraft] = useState<HrRecord[]>(() => cloneRecords(sourceRecords));
   const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [resetting, setResetting] = useState(false);
+  const latestRows = useRef<Map<string, HrRecord>>(new Map());
+  const timers = useRef<Map<string, number>>(new Map());
+
+  const recordIds = sourceRecords.map((record) => record.id).join("|");
+  useEffect(() => {
+    setDraft(cloneRecords(sourceRecords));
+    // Rebuild the grid when the row set changes (load/reset/upload), not on each cell save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordIds]);
 
   const rows = useMemo(
     () =>
@@ -146,25 +162,47 @@ export function EditDataView() {
     setDirty((current) => new Set(current).add(`${rowKey(record)}:${key}`));
   }
 
+  function queuePersist(record: HrRecord) {
+    const id = record.id;
+    if (!id) return;
+    latestRows.current.set(id, record);
+    const existing = timers.current.get(id);
+    if (existing) window.clearTimeout(existing);
+    const timer = window.setTimeout(() => {
+      const latest = latestRows.current.get(id);
+      if (!latest) return;
+      void persistRecord(latest).then((ok) => {
+        if (!ok) return;
+        setDirty((current) => {
+          const next = new Set(current);
+          for (const key of next) {
+            if (key.startsWith(`${id}:`) || key.startsWith(`${rowKey(latest)}:`)) {
+              next.delete(key);
+            }
+          }
+          return next;
+        });
+      });
+    }, 300);
+    timers.current.set(id, timer);
+  }
+
   function updateRecord(target: HrRecord, key: NumericKey, value: number | null) {
     markDirty(target, key);
+    const nextRow = writeValue(target, key, value);
     setDraft((current) =>
       current.map((record) =>
-        rowKey(record) === rowKey(target) ? writeValue(record, key, value) : record,
+        rowKey(record) === rowKey(target) ? nextRow : record,
       ),
     );
+    queuePersist(nextRow);
   }
 
-  function save() {
-    saveSourceRecords(draft);
-    setDirty(new Set());
-  }
-
-  function reset() {
-    const original = cloneRecords();
-    resetSourceRecords();
-    setDraft(original);
-    setDirty(new Set());
+  async function reset() {
+    setResetting(true);
+    const ok = await resetSourceRecords();
+    setResetting(false);
+    if (ok) setDirty(new Set());
   }
 
   return (
@@ -177,8 +215,8 @@ export function EditDataView() {
           Edit Data
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Changes stay in this session until you save. Saving updates Monitor,
-          Diagnose, Predict, and Ask immediately. No database write yet.
+          Cell edits save to your account after you stop typing. Monitor,
+          Diagnose, Predict, and Ask use the live database rows.
         </p>
       </header>
 
@@ -193,19 +231,16 @@ export function EditDataView() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={save}
-          disabled={dirty.size === 0}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-navy px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => void reset()}
+          disabled={resetting}
+          className={toolbarButtonClass}
         >
-          Save changes
-        </button>
-        <button type="button" onClick={reset} className={toolbarButtonClass}>
-          Reset to original data
+          {resetting ? "Resetting…" : "Reset to original data"}
         </button>
         <p className="text-xs text-muted">
           {dirty.size === 0
-            ? "No unsaved edits"
-            : `${dirty.size} unsaved cell${dirty.size === 1 ? "" : "s"}`}
+            ? "All changes saved"
+            : `${dirty.size} cell${dirty.size === 1 ? "" : "s"} saving…`}
         </p>
       </div>
 
@@ -253,11 +288,7 @@ export function EditDataView() {
                           allowEmpty={key === "time_to_hire_days"}
                           onCommit={(value) => updateRecord(record, key, value)}
                         />
-                        {mixOff &&
-                        (key === "agency_pct" ||
-                          key === "referral_pct" ||
-                          key === "job_board_pct") &&
-                        key === "agency_pct" ? (
+                        {mixOff && key === "agency_pct" ? (
                           <p className="px-2 pb-1 text-[10px] text-rag-amber">
                             Source mix is {mix}, not 100
                           </p>

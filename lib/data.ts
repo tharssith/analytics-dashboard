@@ -23,6 +23,12 @@ export function uniqueMonths(records: HrRecord[] = dataset.records): string[] {
   return [...new Set(records.map((record) => record.month))].sort();
 }
 
+export function uniqueDepartments(records: HrRecord[]): string[] {
+  return [...new Set(records.map((record) => record.department))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 export function formatMonth(ym: string): string {
   const [year, month] = ym.split("-").map(Number);
   return new Date(year, month - 1, 1).toLocaleString("en-US", {
@@ -129,11 +135,10 @@ export function latestMonthRecords(records: HrRecord[]): HrRecord[] {
 
 export function recordsByDepartment(records: HrRecord[]): Map<Department, HrRecord[]> {
   const grouped = new Map<Department, HrRecord[]>();
-  for (const department of DEPARTMENTS) {
-    grouped.set(
-      department,
-      records.filter((record) => record.department === department),
-    );
+  for (const record of records) {
+    const list = grouped.get(record.department) ?? [];
+    list.push(record);
+    grouped.set(record.department, list);
   }
   return grouped;
 }

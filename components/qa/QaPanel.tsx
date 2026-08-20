@@ -11,7 +11,7 @@ type Message = {
 };
 
 export function QaPanel({ configured }: { configured: boolean }) {
-  const { records, dateRangeLabel, departmentLabel } = useFilters();
+  const { filters, dateRangeLabel, departmentLabel } = useFilters();
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState(false);
@@ -36,9 +36,9 @@ export function QaPanel({ configured }: { configured: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: trimmed,
-          dateRange: dateRangeLabel,
+          startMonth: filters.startMonth,
+          endMonth: filters.endMonth,
           department: departmentLabel,
-          records,
         }),
       });
 

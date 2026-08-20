@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BarChart3, X } from "lucide-react";
+import { ArrowLeft, BarChart3, LogOut, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { DEPARTMENTS, dataset, uniqueMonths } from "@/lib/data";
+import { logoutAction } from "@/app/login/actions";
+import { dataset, uniqueDepartments, uniqueMonths } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
 import type { DepartmentFilter } from "@/lib/types";
 
@@ -26,6 +27,7 @@ export function FilterBar({
 }) {
   const { filters, setFilters, setDepartment, sourceRecords } = useFilters();
   const months = uniqueMonths(sourceRecords);
+  const departments = uniqueDepartments(sourceRecords);
   const clickFiltered = filters.department !== "All";
 
   return (
@@ -86,7 +88,7 @@ export function FilterBar({
           className={selectClass}
         >
           <option value="All">All</option>
-          {DEPARTMENTS.map((department) => (
+          {departments.map((department) => (
             <option key={department} value={department}>
               {department}
             </option>
@@ -115,6 +117,12 @@ export function FilterBar({
           {actionLabel}
         </Link>
         {extraActions}
+        <form action={logoutAction}>
+          <button type="submit" className={toolbarButtonClass}>
+            <LogOut size={16} className="text-navy" />
+            Log Out
+          </button>
+        </form>
         <p className="text-xs text-muted">
           {dataset.company.name} · {dataset.period.start} to {dataset.period.end}
         </p>

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { FiltersProvider } from "@/lib/filters-context";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,7 +13,11 @@ export const metadata: Metadata = {
   description: "Corporate HR analytics dashboard for Northstar Financial",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
@@ -24,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body
         className={`${inter.className} min-h-full bg-background text-foreground`}
       >
-        <FiltersProvider>{children}</FiltersProvider>
+        {children}
       </body>
     </html>
   );

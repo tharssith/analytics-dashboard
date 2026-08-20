@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Upload } from "lucide-react";
 import { DepartmentBreakdownChart } from "@/components/diagnose/DiagnosePanel";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
@@ -64,10 +64,16 @@ export function AnalyticsDashboard() {
           actionLabel="← Back to Dashboard"
           actionIcon="back"
           extraActions={
-            <Link href="/analytics/edit" className={toolbarButtonClass}>
-              <Pencil size={16} className="text-navy" />
-              Edit Data
-            </Link>
+            <>
+              <Link href="/analytics/edit" className={toolbarButtonClass}>
+                <Pencil size={16} className="text-navy" />
+                Edit Data
+              </Link>
+              <Link href="/upload" className={toolbarButtonClass}>
+                <Upload size={16} className="text-navy" />
+                Upload CSV
+              </Link>
+            </>
           }
         />
       </div>

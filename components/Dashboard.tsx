@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Upload } from "lucide-react";
 import { DiagnosePanel } from "@/components/diagnose/DiagnosePanel";
-import { FilterBar } from "@/components/filters/FilterBar";
+import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { KpiTile } from "@/components/monitor/KpiTile";
 import { ForecastChart } from "@/components/predict/ForecastChart";
 import { WhatIfSlider } from "@/components/predict/WhatIfSlider";
@@ -42,15 +44,9 @@ function DashboardSkeleton() {
 }
 
 function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
-  const { records } = useFilters();
-  const [loaded, setLoaded] = useState(false);
+  const { records, loading, dataError } = useFilters();
   const [expanded, setExpanded] = useState<KpiId | null>(null);
   const [bonusPct, setBonusPct] = useState(0);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setLoaded(true), 400);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   const kpis = useMemo(() => computeKpis(records), [records]);
   const diagnoses = useMemo(() => {
@@ -87,11 +83,19 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
           <FilterBar
             actionHref="/analytics"
             actionLabel="Analytics Dashboard →"
-            extraActions={<DownloadReportButton />}
+            extraActions={
+              <>
+                <DownloadReportButton />
+                <Link href="/upload" className={toolbarButtonClass}>
+                  <Upload size={16} className="text-navy" />
+                  Upload CSV
+                </Link>
+              </>
+            }
           />
         </div>
 
-        {!loaded ? (
+        {loading || (dataError && records.length === 0) ? (
           <DashboardSkeleton />
         ) : (
           <>

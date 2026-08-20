@@ -12,8 +12,11 @@ import {
   YAxis,
 } from "recharts";
 import type { DiagnoseModel } from "@/lib/diagnose";
-import { DEPARTMENTS } from "@/lib/types";
 import type { Department, DepartmentFilter, RagStatus } from "@/lib/types";
+
+function isDepartment(value: unknown): value is Department {
+  return typeof value === "string" && value.length > 0 && value !== "All";
+}
 
 const FILL: Record<RagStatus | "neutral", string> = {
   green: "#5B8A72",
@@ -30,10 +33,6 @@ const FILL_SELECTED: Record<RagStatus | "neutral", string> = {
 };
 
 const NAVY = "#1B365D";
-
-function isDepartment(value: unknown): value is Department {
-  return DEPARTMENTS.includes(value as Department);
-}
 
 function departmentFromChartEvent(data: unknown): Department | null {
   if (!data || typeof data !== "object") return null;

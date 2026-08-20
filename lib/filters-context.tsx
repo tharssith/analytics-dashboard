@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -13,6 +14,8 @@ import {
   defaultFilters,
   filterRecords,
   formatDateRange,
+  uniqueDepartments,
+  uniqueMonths,
 } from "./data";
 import { computeKpis } from "./kpis";
 import type { DepartmentFilter, FilterState, HrRecord, RagStatus } from "./types";
@@ -27,8 +30,13 @@ type FiltersContextValue = {
   setFilters: (next: FilterState) => void;
   setDepartment: (department: DepartmentFilter) => void;
   sourceRecords: HrRecord[];
-  saveSourceRecords: (next: HrRecord[]) => void;
-  resetSourceRecords: () => void;
+  departments: string[];
+  loading: boolean;
+  dataError: string | null;
+  clearDataError: () => void;
+  persistRecord: (record: HrRecord) => Promise<boolean>;
+  resetSourceRecords: () => Promise<boolean>;
+  replaceSourceRecords: (next: HrRecord[]) => Promise<boolean>;
   kpiStatusChanges: KpiStatusChange[];
   clearKpiStatusChanges: () => void;
   records: HrRecord[];
@@ -38,14 +46,66 @@ type FiltersContextValue = {
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
 
-export function FiltersProvider({ children }: { children: ReactNode }) {
+async function readJson(response: Response): Promise<{
+  records?: HrRecord[];
+  record?: HrRecord;
+  error?: string;
+}> {
+  try {
+    return (await response.json()) as {
+      records?: HrRecord[];
+      record?: HrRecord;
+      error?: string;
+    };
+  } catch {
+    return { error: "The database request did not return JSON." };
+  }
+}
+
+export function FiltersProvider({
+  children,
+  initialRecords,
+  initialError = null,
+}: {
+  children: ReactNode;
+  initialRecords: HrRecord[];
+  initialError?: string | null;
+}) {
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [sourceRecords, setSourceRecords] = useState<HrRecord[]>(() =>
-    cloneRecords(),
+    cloneRecords(initialRecords),
   );
+  const [loading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(initialError);
   const [kpiStatusChanges, setKpiStatusChanges] = useState<KpiStatusChange[]>(
     [],
   );
+
+  useEffect(() => {
+    const months = uniqueMonths(sourceRecords);
+    if (months.length === 0) return;
+    const departments = uniqueDepartments(sourceRecords);
+    setFilters((current) => {
+      const startMonth = months.includes(current.startMonth)
+        ? current.startMonth
+        : months[0];
+      const endMonth = months.includes(current.endMonth)
+        ? current.endMonth
+        : months[months.length - 1];
+      const department =
+        current.department === "All" || departments.includes(current.department)
+          ? current.department
+          : "All";
+      if (
+        startMonth === current.startMonth &&
+        endMonth === current.endMonth &&
+        department === current.department
+      ) {
+        return current;
+      }
+      return { startMonth, endMonth, department };
+    });
+  }, [sourceRecords]);
 
   const noteStatusShifts = useCallback(
     (previous: HrRecord[], next: HrRecord[]) => {
@@ -56,28 +116,87 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
         if (!prior || prior.status === tile.status) return [];
         return [{ label: tile.label, status: tile.status }];
       });
-        if (changes.length > 0) setKpiStatusChanges(changes);
+      if (changes.length > 0) setKpiStatusChanges(changes);
     },
     [filters],
   );
 
-  const saveSourceRecords = useCallback(
-    (next: HrRecord[]) => {
-      const cloned = cloneRecords(next);
-      noteStatusShifts(sourceRecords, cloned);
-      setSourceRecords(cloned);
+  const persistRecord = useCallback(async (record: HrRecord) => {
+      if (!record.id) {
+        setDataError("That row is missing a database id.");
+        return false;
+      }
+
+      let previous: HrRecord[] = [];
+      let optimistic: HrRecord[] = [];
+      setSourceRecords((current) => {
+        previous = current;
+        optimistic = current.map((item) =>
+          item.id === record.id ? record : item,
+        );
+        return cloneRecords(optimistic);
+      });
+      noteStatusShifts(previous, optimistic);
+
+      const response = await fetch("/api/records", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, record }),
+      });
+      const payload = await readJson(response);
+      const saved = payload.record;
+      if (!response.ok || !saved) {
+        setSourceRecords(previous);
+        setDataError(payload.error ?? "Could not save that change.");
+        return false;
+      }
+      setSourceRecords((current) =>
+        current.map((item) => (item.id === saved.id ? saved : item)),
+      );
+      return true;
+    }, [noteStatusShifts]);
+
+  const resetSourceRecords = useCallback(async () => {
+    const response = await fetch("/api/records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset" }),
+    });
+    const payload = await readJson(response);
+    if (!response.ok || !payload.records) {
+      setDataError(payload.error ?? "Could not reset HR records.");
+      return false;
+    }
+    noteStatusShifts(sourceRecords, payload.records);
+    setSourceRecords(cloneRecords(payload.records));
+    return true;
+  }, [noteStatusShifts, sourceRecords]);
+
+  const replaceSourceRecords = useCallback(
+    async (next: HrRecord[]) => {
+      const response = await fetch("/api/records", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "replace", records: next }),
+      });
+      const payload = await readJson(response);
+      if (!response.ok || !payload.records) {
+        setDataError(payload.error ?? "Could not replace HR records.");
+        return false;
+      }
+      noteStatusShifts(sourceRecords, payload.records);
+      setSourceRecords(cloneRecords(payload.records));
+      return true;
     },
     [noteStatusShifts, sourceRecords],
   );
 
-  const resetSourceRecords = useCallback(() => {
-    const original = cloneRecords();
-    noteStatusShifts(sourceRecords, original);
-    setSourceRecords(original);
-  }, [noteStatusShifts, sourceRecords]);
-
   const clearKpiStatusChanges = useCallback(() => {
     setKpiStatusChanges([]);
+  }, []);
+
+  const clearDataError = useCallback(() => {
+    setDataError(null);
   }, []);
 
   const setDepartment = useCallback((department: DepartmentFilter) => {
@@ -91,8 +210,13 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       setFilters,
       setDepartment,
       sourceRecords,
-      saveSourceRecords,
+      departments: uniqueDepartments(sourceRecords),
+      loading,
+      dataError,
+      clearDataError,
+      persistRecord,
       resetSourceRecords,
+      replaceSourceRecords,
       kpiStatusChanges,
       clearKpiStatusChanges,
       records,
@@ -100,13 +224,17 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       departmentLabel: filters.department,
     };
   }, [
+    clearDataError,
+    clearKpiStatusChanges,
+    dataError,
     filters,
+    kpiStatusChanges,
+    loading,
+    persistRecord,
+    replaceSourceRecords,
     resetSourceRecords,
-    saveSourceRecords,
     setDepartment,
     sourceRecords,
-    kpiStatusChanges,
-    clearKpiStatusChanges,
   ]);
 
   return (

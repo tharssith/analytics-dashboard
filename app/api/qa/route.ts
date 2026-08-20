@@ -1,23 +1,15 @@
+import { filterRecords, formatDateRange, uniqueMonths } from "@/lib/data";
 import { getGrokApiKey } from "@/lib/grok";
+import { getOrSeedHrRecords } from "@/lib/hr-store";
 import { buildQaPrompt } from "@/lib/qa-prompt";
 import { buildQaDashboardValues } from "@/lib/report";
-import type { HrRecord } from "@/lib/types";
+import type { DepartmentFilter, FilterState } from "@/lib/types";
 
 const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
 const GROK_MODEL = "grok-4.6";
 
 function isConfigured(): boolean {
   return Boolean(getGrokApiKey());
-}
-
-function isHrRecord(value: unknown): value is HrRecord {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Record<string, unknown>;
-  return (
-    typeof row.month === "string" &&
-    typeof row.department === "string" &&
-    typeof row.headcount === "number"
-  );
 }
 
 function grokErrorMessage(payload: {
@@ -40,9 +32,9 @@ export async function POST(request: Request) {
 
   let body: {
     question?: unknown;
-    dateRange?: unknown;
+    startMonth?: unknown;
+    endMonth?: unknown;
     department?: unknown;
-    records?: unknown;
   };
 
   try {
@@ -57,12 +49,33 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing_question" }, { status: 400 });
   }
 
-  const dateRange = typeof body.dateRange === "string" ? body.dateRange : "";
+  const loaded = await getOrSeedHrRecords();
+  if (loaded.error === "Sign in required.") {
+    return Response.json({ error: "Sign in required." }, { status: 401 });
+  }
+  if (loaded.error && loaded.records.length === 0) {
+    return Response.json({ error: loaded.error }, { status: 500 });
+  }
+
+  const months = uniqueMonths(loaded.records);
+  const startMonth =
+    typeof body.startMonth === "string" && months.includes(body.startMonth)
+      ? body.startMonth
+      : months[0] ?? "";
+  const endMonth =
+    typeof body.endMonth === "string" && months.includes(body.endMonth)
+      ? body.endMonth
+      : months[months.length - 1] ?? "";
   const department =
     typeof body.department === "string" ? body.department : "All";
-  const records = Array.isArray(body.records)
-    ? body.records.filter(isHrRecord)
-    : [];
+
+  const filters: FilterState = {
+    startMonth,
+    endMonth,
+    department: department as DepartmentFilter,
+  };
+  const records = filterRecords(loaded.records, filters);
+  const dateRange = formatDateRange(startMonth, endMonth);
   const values = buildQaDashboardValues(records);
 
   const system = buildQaPrompt({
