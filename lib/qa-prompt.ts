@@ -33,6 +33,26 @@ RULES:
 
 USER QUESTION: {userQuestion}`;
 
+export function buildGenericQaPrompt(params: {
+  kindLabel: string;
+  filename: string;
+  dateRange: string;
+  category: string;
+  summary: string;
+  filteredData: unknown[];
+  userQuestion: string;
+}): string {
+  return [
+    `You are a data analyst for a ${params.kindLabel} dataset named ${params.filename}.`,
+    "Answer ONLY from the data below.",
+    `Filter: ${params.dateRange} · ${params.category}`,
+    `Dashboard summary: ${params.summary}`,
+    `Filtered rows (JSON): ${JSON.stringify(params.filteredData.slice(0, 80))}`,
+    "Keep answers to 2-4 sentences. End with: Based on: " + params.dateRange + " · " + params.category,
+    `USER QUESTION: ${params.userQuestion}`,
+  ].join("\n");
+}
+
 export function buildQaPrompt(params: {
   dateRange: string;
   department: string;

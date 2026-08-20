@@ -71,7 +71,7 @@ export type SparkPoint = {
 };
 
 export type KpiTileModel = {
-  id: KpiId;
+  id: string;
   label: string;
   display: string;
   context: string;

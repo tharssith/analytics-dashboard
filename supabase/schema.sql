@@ -87,3 +87,92 @@ $$;
 
 grant select, insert, update, delete on public.hr_records to authenticated;
 grant execute on function public.replace_hr_records(jsonb) to authenticated;
+
+create table if not exists public.user_datasets (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  filename text not null,
+  kind text not null,
+  type_from_name text not null,
+  type_from_headers text not null,
+  name_header_match boolean not null default true,
+  reason text,
+  time_field text,
+  category_field text,
+  metric_fields jsonb not null default '[]'::jsonb,
+  headers jsonb not null default '[]'::jsonb,
+  rows jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_datasets enable row level security;
+
+drop policy if exists "user_datasets_select_own" on public.user_datasets;
+create policy "user_datasets_select_own"
+  on public.user_datasets for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "user_datasets_insert_own" on public.user_datasets;
+create policy "user_datasets_insert_own"
+  on public.user_datasets for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "user_datasets_update_own" on public.user_datasets;
+create policy "user_datasets_update_own"
+  on public.user_datasets for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "user_datasets_delete_own" on public.user_datasets;
+create policy "user_datasets_delete_own"
+  on public.user_datasets for delete
+  using (auth.uid() = user_id);
+
+create or replace function public.replace_user_dataset(payload jsonb)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  insert into public.user_datasets (
+    user_id, filename, kind, type_from_name, type_from_headers,
+    name_header_match, reason, time_field, category_field,
+    metric_fields, headers, rows, updated_at
+  )
+  values (
+    auth.uid(),
+    coalesce(payload->>'filename', 'upload'),
+    coalesce(payload->>'kind', 'generic'),
+    coalesce(payload->>'typeFromName', 'generic'),
+    coalesce(payload->>'typeFromHeaders', 'generic'),
+    coalesce((payload->>'nameHeaderMatch')::boolean, true),
+    payload->>'reason',
+    payload->>'timeField',
+    payload->>'categoryField',
+    coalesce(payload->'metricFields', '[]'::jsonb),
+    coalesce(payload->'headers', '[]'::jsonb),
+    coalesce(payload->'rows', '[]'::jsonb),
+    now()
+  )
+  on conflict (user_id) do update set
+    filename = excluded.filename,
+    kind = excluded.kind,
+    type_from_name = excluded.type_from_name,
+    type_from_headers = excluded.type_from_headers,
+    name_header_match = excluded.name_header_match,
+    reason = excluded.reason,
+    time_field = excluded.time_field,
+    category_field = excluded.category_field,
+    metric_fields = excluded.metric_fields,
+    headers = excluded.headers,
+    rows = excluded.rows,
+    updated_at = now();
+end;
+$$;
+
+grant select, insert, update, delete on public.user_datasets to authenticated;
+grant execute on function public.replace_user_dataset(jsonb) to authenticated;

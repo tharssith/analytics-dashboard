@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ArrowLeft, BarChart3, LogOut, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { logoutAction } from "@/app/login/actions";
-import { dataset, uniqueDepartments, uniqueMonths } from "@/lib/data";
+import { dataset as companyDataset, uniqueMonths } from "@/lib/data";
+import { uniqueGenericMonths, KIND_LABELS } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
 import type { DepartmentFilter } from "@/lib/types";
 
@@ -25,13 +26,25 @@ export function FilterBar({
   actionIcon?: "forward" | "back";
   extraActions?: ReactNode;
 }) {
-  const { filters, setFilters, setDepartment, sourceRecords } = useFilters();
-  const months = uniqueMonths(sourceRecords);
-  const departments = uniqueDepartments(sourceRecords);
+  const {
+    filters,
+    setFilters,
+    setDepartment,
+    sourceRecords,
+    dataset,
+    isHrDashboard,
+    categoryFieldLabel,
+    departments,
+  } = useFilters();
+  const months = isHrDashboard
+    ? uniqueMonths(sourceRecords)
+    : uniqueGenericMonths(dataset?.rows ?? [], dataset?.timeField ?? null);
   const clickFiltered = filters.department !== "All";
 
   return (
     <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+      {months.length > 0 ? (
+      <>
       <label className="flex min-w-0 flex-1 basis-[calc(50%-0.4rem)] flex-col gap-1.5 text-xs font-medium text-muted sm:min-w-[140px] sm:flex-none sm:basis-auto">
         From
         <select
@@ -77,9 +90,11 @@ export function FilterBar({
           ))}
         </select>
       </label>
+      </>
+      ) : null}
 
       <label className="flex min-w-0 flex-1 basis-full flex-col gap-1.5 text-xs font-medium text-muted sm:min-w-[160px] sm:flex-none sm:basis-auto">
-        Department
+        {categoryFieldLabel}
         <select
           value={filters.department}
           onChange={(event) =>
@@ -124,7 +139,9 @@ export function FilterBar({
           </button>
         </form>
         <p className="text-xs text-muted">
-          {dataset.company.name} · {dataset.period.start} to {dataset.period.end}
+          {dataset?.filename
+            ? `${KIND_LABELS[dataset.kind]} · ${dataset.filename}`
+            : `${companyDataset.company.name} · ${companyDataset.period.start} to ${companyDataset.period.end}`}
         </p>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { FiltersProvider } from "@/lib/filters-context";
 import { getOrSeedHrRecords } from "@/lib/hr-store";
+import { getStoredDataset } from "@/lib/dataset-store";
 import { AppErrorToast } from "@/components/ui/AppErrorToast";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -36,8 +37,13 @@ async function RecordsShell({ children }: { children: React.ReactNode }) {
   if (!user) redirect("/login");
 
   const { records, error } = await getOrSeedHrRecords();
+  const stored = await getStoredDataset();
   return (
-    <FiltersProvider initialRecords={records} initialError={error}>
+    <FiltersProvider
+      initialRecords={records}
+      initialError={error}
+      initialDataset={stored.dataset}
+    >
       <AppErrorToast />
       {children}
     </FiltersProvider>

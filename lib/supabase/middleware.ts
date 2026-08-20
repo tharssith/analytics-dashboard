@@ -10,6 +10,8 @@ const PROTECTED_PREFIXES = [
   "/api/qa",
   "/api/map-columns",
   "/api/fix-values",
+  "/api/detect-dataset",
+  "/api/dataset",
 ];
 
 function isProtectedPath(pathname: string): boolean {

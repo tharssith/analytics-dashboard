@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { Download } from "lucide-react";
-import { diagnoseKpi } from "@/lib/diagnose";
+import { diagnoseKpi, KPI_IDS } from "@/lib/diagnose";
 import { dataset } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
 import { computeKpis } from "@/lib/kpis";
@@ -23,8 +23,9 @@ export function DownloadReportButton() {
   const [ready, setReady] = useState(false);
   const kpis = computeKpis(records);
   const findings = kpis.tiles
+    .filter((tile) => KPI_IDS.includes(tile.id as (typeof KPI_IDS)[number]))
     .filter((tile) => tile.status === "red" || tile.status === "amber")
-    .map((tile) => diagnoseKpi(tile.id, records))
+    .map((tile) => diagnoseKpi(tile.id as (typeof KPI_IDS)[number], records))
     .filter((model) => model != null);
 
   useEffect(() => {

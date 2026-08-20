@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { AiFixReview, type SuggestedFix } from "@/components/upload/AiFixReview";
 import { ChoiceStep } from "@/components/upload/ChoiceStep";
 import { ColumnMappingForm } from "@/components/upload/ColumnMappingForm";
+import { DatasetTypeCard } from "@/components/upload/DatasetTypeCard";
 import { navyButtonClass } from "@/components/upload/upload-ui";
 import {
   applyColumnMapping,
@@ -22,6 +23,12 @@ import {
   type RequiredHeader,
 } from "@/lib/csv";
 import { dataset, uniqueDepartments } from "@/lib/data";
+import {
+  buildLocalProfile,
+  withKind,
+  type DatasetKind,
+  type DatasetProfile,
+} from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
 import { clearUploadDraft, writeUploadDraft } from "@/lib/upload-draft";
 import {
@@ -53,7 +60,7 @@ type Stage =
 
 export function UploadDataView() {
   const router = useRouter();
-  const { replaceSourceRecords } = useFilters();
+  const { replaceSourceRecords, replaceDataset } = useFilters();
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<RawCsvRow[]>([]);
@@ -72,6 +79,8 @@ export function UploadDataView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [savedLabel, setSavedLabel] = useState<string | null>(null);
+  const [profile, setProfile] = useState<DatasetProfile | null>(null);
+  const [typeLoading, setTypeLoading] = useState(false);
   const mapRequest = useRef(0);
 
   function resetWorking() {
@@ -88,6 +97,8 @@ export function UploadDataView() {
     setSaveError(null);
     setMappingError(null);
     setSavedLabel(null);
+    setProfile(null);
+    setTypeLoading(false);
     clearUploadDraft();
   }
 
@@ -106,6 +117,26 @@ export function UploadDataView() {
       }
       setHeaders(raw.headers);
       setRawRows(raw.rows);
+      const local = buildLocalProfile(file.name, raw.headers, raw.rows);
+      setProfile(local);
+      setTypeLoading(true);
+      try {
+        const response = await fetch("/api/detect-dataset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            headers: raw.headers,
+            rows: raw.rows.slice(0, 25),
+          }),
+        });
+        const detected = (await response.json()) as DatasetProfile;
+        if (detected?.kind) setProfile({ ...detected, filename: file.name, headers: raw.headers });
+      } catch {
+        setProfile(local);
+      } finally {
+        setTypeLoading(false);
+      }
       setStage("choice");
     } catch {
       setParseError("Could not read that file. Use a CSV or Excel (.xlsx) spreadsheet.");
@@ -181,6 +212,18 @@ export function UploadDataView() {
     } finally {
       if (mapRequest.current === requestId) setMappingLoading(false);
     }
+  }
+
+  async function saveGenericDataset() {
+    if (!profile || !fileName) return;
+    setBusy(true);
+    const ok = await replaceDataset({ ...profile, filename: fileName, rows: rawRows });
+    setBusy(false);
+    if (!ok) {
+      setSaveError("Could not save this dataset.");
+      return;
+    }
+    router.push("/dashboard");
   }
 
   function goToEditor(
@@ -413,7 +456,36 @@ export function UploadDataView() {
         {parseError ? <p className="mt-3 text-sm text-rag-red">{parseError}</p> : null}
       </Card>
 
-      {rawRows.length > 0 && stage === "choice" ? (
+      {profile && rawRows.length > 0 ? (
+        <DatasetTypeCard
+          profile={profile}
+          loading={typeLoading}
+          onKindChange={(kind: DatasetKind) => setProfile((current) => (current ? withKind(current, kind) : current))}
+          onTimeChange={(field) =>
+            setProfile((current) => (current ? { ...current, timeField: field || null } : current))
+          }
+          onCategoryChange={(field) =>
+            setProfile((current) =>
+              current ? { ...current, categoryField: field || null } : current,
+            )
+          }
+        />
+      ) : null}
+
+      {profile && profile.kind !== "hr" && rawRows.length > 0 && stage === "choice" ? (
+        <div className="mb-5 max-w-xl">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void saveGenericDataset()}
+            className={navyButtonClass}
+          >
+            {busy ? "Saving…" : "Load this dataset on the dashboard"}
+          </button>
+        </div>
+      ) : null}
+
+      {rawRows.length > 0 && stage === "choice" && (!profile || profile.kind === "hr") ? (
         <ChoiceStep
           fileName={fileName ?? "File"}
           rowCount={rawRows.length}

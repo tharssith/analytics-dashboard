@@ -10,10 +10,12 @@ import { ForecastChart } from "@/components/predict/ForecastChart";
 import { WhatIfSlider } from "@/components/predict/WhatIfSlider";
 import { DownloadReportButton } from "@/components/report/DownloadReportButton";
 import { QaPanel } from "@/components/qa/QaPanel";
+import { GenericBreakdownChart, GenericTrendChart } from "@/components/dataset/GenericCharts";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
-import { dataset } from "@/lib/data";
+import { dataset as company } from "@/lib/data";
+import { KIND_LABELS, computeGenericAnalytics } from "@/lib/dataset";
 import { diagnoseKpi } from "@/lib/diagnose";
 import { useFilters } from "@/lib/filters-context";
 import { computeKpis } from "@/lib/kpis";
@@ -44,15 +46,19 @@ function DashboardSkeleton() {
 }
 
 function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
-  const { records, loading, dataError } = useFilters();
+  const { records, loading, dataError, dataset, isHrDashboard, genericRows } = useFilters();
   const [expanded, setExpanded] = useState<KpiId | null>(null);
   const [bonusPct, setBonusPct] = useState(0);
 
   const kpis = useMemo(() => computeKpis(records), [records]);
+  const generic = useMemo(
+    () => (dataset && !isHrDashboard ? computeGenericAnalytics(genericRows, dataset) : null),
+    [dataset, genericRows, isHrDashboard],
+  );
   const diagnoses = useMemo(() => {
     const next: Partial<Record<KpiId, ReturnType<typeof diagnoseKpi>>> = {};
     for (const tile of kpis.tiles) {
-      if (tile.expandable) next[tile.id] = diagnoseKpi(tile.id, records);
+      if (tile.expandable) next[tile.id as KpiId] = diagnoseKpi(tile.id as KpiId, records);
     }
     return next;
   }, [kpis.tiles, records]);
@@ -68,14 +74,17 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
       <div className="min-w-0 flex-1 px-4 py-6 pb-20 sm:px-6 lg:px-8 xl:pb-6">
         <header className="mb-6">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
-            {dataset.company.industry}
+            {dataset && !isHrDashboard ? KIND_LABELS[dataset.kind] : company.company.industry}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-            {dataset.company.name} HR Analytics
+            {dataset && !isHrDashboard
+              ? `${KIND_LABELS[dataset.kind]} analytics`
+              : `${company.company.name} HR Analytics`}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            HQ {dataset.company.hq} · Monitor, diagnose, and forecast workforce
-            health
+            {dataset && !isHrDashboard
+              ? `${dataset.filename} · ${generic?.rowCount ?? 0} rows · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
+              : `HQ ${company.company.hq} · Monitor, diagnose, and forecast workforce health`}
           </p>
         </header>
 
@@ -85,7 +94,7 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
             actionLabel="Analytics Dashboard →"
             extraActions={
               <>
-                <DownloadReportButton />
+                {isHrDashboard ? <DownloadReportButton /> : null}
                 <Link href="/upload" className={toolbarButtonClass}>
                   <Upload size={16} className="text-navy" />
                   Upload data
@@ -95,14 +104,32 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
           />
         </div>
 
-        {loading || (dataError && records.length === 0) ? (
+        {loading || (dataError && isHrDashboard && records.length === 0) ? (
           <DashboardSkeleton />
+        ) : !isHrDashboard && generic ? (
+          <>
+            <div className="grid grid-cols-12 gap-4">
+              {generic.tiles.map((tile) => (
+                <Card key={tile.id} className="col-span-12 sm:col-span-6 xl:col-span-3">
+                  <KpiTile tile={tile} expanded={false} onToggle={() => undefined} />
+                </Card>
+              ))}
+            </div>
+            <div className="mt-6 grid grid-cols-12 gap-4">
+              <div className="col-span-12 lg:col-span-8">
+                <GenericTrendChart title={generic.seriesLabel} points={generic.series} />
+              </div>
+              <div className="col-span-12 lg:col-span-4">
+                <GenericBreakdownChart title={generic.breakdownLabel} points={generic.breakdown} />
+              </div>
+            </div>
+          </>
         ) : (
           <>
             <div className="grid grid-cols-12 gap-4">
               {kpis.tiles.map((tile) => {
                 const isOpen = expanded === tile.id;
-                const model = diagnoses[tile.id] ?? null;
+                const model = diagnoses[tile.id as KpiId] ?? null;
                 return (
                   <Card
                     key={tile.id}
@@ -117,7 +144,7 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
                       expanded={isOpen}
                       onToggle={() =>
                         setExpanded((current) =>
-                          current === tile.id ? null : tile.id,
+                          current === tile.id ? null : (tile.id as KpiId),
                         )
                       }
                     />

@@ -19,6 +19,16 @@ import {
 } from "./data";
 import { computeKpis } from "./kpis";
 import type { DepartmentFilter, FilterState, HrRecord, RagStatus } from "./types";
+import type { RawCsvRow } from "./csv";
+import {
+  DEFAULT_HR_PROFILE,
+  filterGenericRows,
+  uniqueGenericCategories,
+  uniqueGenericMonths,
+  type StoredDataset,
+} from "./dataset";
+
+const DATASET_KEY = "northstar-active-dataset";
 
 export type KpiStatusChange = {
   label: string;
@@ -37,12 +47,37 @@ type FiltersContextValue = {
   persistRecord: (record: HrRecord) => Promise<boolean>;
   resetSourceRecords: () => Promise<boolean>;
   replaceSourceRecords: (next: HrRecord[]) => Promise<boolean>;
+  replaceDataset: (next: StoredDataset) => Promise<boolean>;
+  dataset: StoredDataset | null;
+  isHrDashboard: boolean;
+  categoryFieldLabel: string;
+  genericRows: RawCsvRow[];
   kpiStatusChanges: KpiStatusChange[];
   clearKpiStatusChanges: () => void;
   records: HrRecord[];
   dateRangeLabel: string;
   departmentLabel: string;
 };
+
+function readLocalDataset(): StoredDataset | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DATASET_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredDataset;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalDataset(dataset: StoredDataset | null) {
+  if (typeof window === "undefined") return;
+  if (!dataset) {
+    window.localStorage.removeItem(DATASET_KEY);
+    return;
+  }
+  window.localStorage.setItem(DATASET_KEY, JSON.stringify(dataset));
+}
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
 
@@ -66,15 +101,18 @@ export function FiltersProvider({
   children,
   initialRecords,
   initialError = null,
+  initialDataset = null,
 }: {
   children: ReactNode;
   initialRecords: HrRecord[];
   initialError?: string | null;
+  initialDataset?: StoredDataset | null;
 }) {
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [sourceRecords, setSourceRecords] = useState<HrRecord[]>(() =>
     cloneRecords(initialRecords),
   );
+  const [dataset, setDataset] = useState<StoredDataset | null>(initialDataset);
   const [loading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(initialError);
   const [kpiStatusChanges, setKpiStatusChanges] = useState<KpiStatusChange[]>(
@@ -82,6 +120,47 @@ export function FiltersProvider({
   );
 
   useEffect(() => {
+    const local = readLocalDataset();
+    if (local && !initialDataset) setDataset(local);
+    void fetch("/api/dataset")
+      .then((response) => response.json())
+      .then((payload: { dataset?: StoredDataset | null }) => {
+        if (payload.dataset) {
+          setDataset(payload.dataset);
+          writeLocalDataset(payload.dataset);
+        }
+      })
+      .catch(() => undefined);
+  }, [initialDataset]);
+
+  useEffect(() => {
+    const isHr = !dataset || dataset.kind === "hr";
+    if (!isHr && dataset) {
+      const months = uniqueGenericMonths(dataset.rows, dataset.timeField);
+      const categories = uniqueGenericCategories(dataset.rows, dataset.categoryField);
+      if (months.length === 0 && categories.length === 0) return;
+      setFilters((current) => {
+        const startMonth = months.includes(current.startMonth)
+          ? current.startMonth
+          : months[0] ?? current.startMonth;
+        const endMonth = months.includes(current.endMonth)
+          ? current.endMonth
+          : months[months.length - 1] ?? current.endMonth;
+        const department =
+          current.department === "All" || categories.includes(current.department)
+            ? current.department
+            : "All";
+        if (
+          startMonth === current.startMonth &&
+          endMonth === current.endMonth &&
+          department === current.department
+        ) {
+          return current;
+        }
+        return { startMonth, endMonth, department };
+      });
+      return;
+    }
     const months = uniqueMonths(sourceRecords);
     if (months.length === 0) return;
     const departments = uniqueDepartments(sourceRecords);
@@ -105,7 +184,7 @@ export function FiltersProvider({
       }
       return { startMonth, endMonth, department };
     });
-  }, [sourceRecords]);
+  }, [sourceRecords, dataset]);
 
   const noteStatusShifts = useCallback(
     (previous: HrRecord[], next: HrRecord[]) => {
@@ -186,10 +265,33 @@ export function FiltersProvider({
       }
       noteStatusShifts(sourceRecords, payload.records);
       setSourceRecords(cloneRecords(payload.records));
+      const hrDataset: StoredDataset = {
+        ...DEFAULT_HR_PROFILE,
+        rows: [],
+      };
+      setDataset(hrDataset);
+      writeLocalDataset(hrDataset);
       return true;
     },
     [noteStatusShifts, sourceRecords],
   );
+
+  const replaceDataset = useCallback(async (next: StoredDataset) => {
+    writeLocalDataset(next);
+    setDataset(next);
+    const response = await fetch("/api/dataset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataset: next }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (payload.error && payload.error !== "Could not save dataset.") {
+        setDataError(payload.error);
+      }
+    }
+    return true;
+  }, []);
 
   const clearKpiStatusChanges = useCallback(() => {
     setKpiStatusChanges([]);
@@ -204,33 +306,56 @@ export function FiltersProvider({
   }, []);
 
   const value = useMemo(() => {
-    const records = filterRecords(sourceRecords, filters);
+    const isHrDashboard = !dataset || dataset.kind === "hr";
+    const genericRows =
+      !isHrDashboard && dataset
+        ? filterGenericRows(
+            dataset.rows,
+            dataset,
+            filters.startMonth,
+            filters.endMonth,
+            filters.department,
+          )
+        : [];
+    const records = isHrDashboard
+      ? filterRecords(sourceRecords, filters)
+      : [];
+    const departments = isHrDashboard
+      ? uniqueDepartments(sourceRecords)
+      : uniqueGenericCategories(dataset?.rows ?? [], dataset?.categoryField ?? null);
     return {
       filters,
       setFilters,
       setDepartment,
       sourceRecords,
-      departments: uniqueDepartments(sourceRecords),
+      departments,
       loading,
       dataError,
       clearDataError,
       persistRecord,
       resetSourceRecords,
       replaceSourceRecords,
+      replaceDataset,
+      dataset,
+      isHrDashboard,
+      categoryFieldLabel: dataset?.categoryField || "Department",
       kpiStatusChanges,
       clearKpiStatusChanges,
       records,
       dateRangeLabel: formatDateRange(filters.startMonth, filters.endMonth),
       departmentLabel: filters.department,
+      genericRows,
     };
   }, [
     clearDataError,
     clearKpiStatusChanges,
     dataError,
+    dataset,
     filters,
     kpiStatusChanges,
     loading,
     persistRecord,
+    replaceDataset,
     replaceSourceRecords,
     resetSourceRecords,
     setDepartment,
