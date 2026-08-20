@@ -8,7 +8,6 @@ import {
   applyColumnMapping,
   emptyMapping,
   isMappingComplete,
-  parseRawCsv,
   sanitizeColumnMapping,
   validateMappedRows,
   type ColumnMapping,
@@ -46,36 +45,40 @@ export function UploadDataView() {
   }
 
   async function onFile(file: File) {
-    const text = await file.text();
-    const raw = parseRawCsv(text);
     setFileName(file.name);
-    setErrors(raw.errors);
     resetFileState();
-    if (raw.errors.length > 0 && raw.rows.length === 0) return;
-
-    setHeaders(raw.headers);
-    setRawRows(raw.rows);
-    setMappingLoading(true);
-    const requestId = mapRequest.current + 1;
-    mapRequest.current = requestId;
-
     try {
-      const response = await fetch("/api/map-columns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ headers: raw.headers }),
-      });
-      const payload = (await response.json()) as Record<string, unknown>;
-      if (mapRequest.current !== requestId) return;
-      setMapping(sanitizeColumnMapping(payload, raw.headers));
+      const { parseRawUpload } = await import("@/lib/spreadsheet");
+      const raw = await parseRawUpload(file);
+      setErrors(raw.errors);
+      if (raw.errors.length > 0 && raw.rows.length === 0) return;
+
+      setHeaders(raw.headers);
+      setRawRows(raw.rows);
+      setMappingLoading(true);
+      const requestId = mapRequest.current + 1;
+      mapRequest.current = requestId;
+
+      try {
+        const response = await fetch("/api/map-columns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ headers: raw.headers }),
+        });
+        const payload = (await response.json()) as Record<string, unknown>;
+        if (mapRequest.current !== requestId) return;
+        setMapping(sanitizeColumnMapping(payload, raw.headers));
+      } catch {
+        if (mapRequest.current !== requestId) return;
+        setMapping(sanitizeColumnMapping({}, raw.headers));
+        setErrors([
+          "Could not suggest column matches. Pick each required field from the dropdowns.",
+        ]);
+      } finally {
+        if (mapRequest.current === requestId) setMappingLoading(false);
+      }
     } catch {
-      if (mapRequest.current !== requestId) return;
-      setMapping(sanitizeColumnMapping({}, raw.headers));
-      setErrors([
-        "Could not suggest column matches. Pick each required field from the dropdowns.",
-      ]);
-    } finally {
-      if (mapRequest.current === requestId) setMappingLoading(false);
+      setErrors(["Could not read that file. Use a CSV or Excel (.xlsx) spreadsheet."]);
     }
   }
 
@@ -113,11 +116,11 @@ export function UploadDataView() {
           {dataset.company.industry}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-          Upload CSV
+          Upload data
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Replace your saved dataset. Department names are read from the file,
-          not limited to the original four teams.
+          Replace your saved dataset with a CSV or Excel file. Department names
+          are read from the file, not limited to the original four teams.
         </p>
       </header>
 
@@ -131,10 +134,10 @@ export function UploadDataView() {
 
       <Card className="max-w-xl p-5">
         <label className="flex cursor-pointer flex-col gap-2">
-          <span className="text-xs font-medium text-muted">CSV file</span>
+          <span className="text-xs font-medium text-muted">CSV or Excel file</span>
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,.xls,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             className="text-sm text-foreground file:mr-3 file:h-9 file:rounded-md file:border file:border-border file:bg-white file:px-3 file:text-sm file:font-medium file:text-foreground file:transition-colors file:duration-150 hover:file:border-navy/40 hover:file:bg-background/80"
             onChange={(event) => {
               const file = event.target.files?.[0];

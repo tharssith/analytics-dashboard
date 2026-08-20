@@ -71,7 +71,7 @@ export function AnalyticsDashboard() {
               </Link>
               <Link href="/upload" className={toolbarButtonClass}>
                 <Upload size={16} className="text-navy" />
-                Upload CSV
+                Upload data
               </Link>
             </>
           }
