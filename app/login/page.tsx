@@ -18,8 +18,12 @@ export default async function LoginPage({
       : "/dashboard";
 
   if (isNeonAuthConfigured()) {
-    const { data: session } = await auth.getSession();
-    if (session?.user) redirect(next);
+    try {
+      const { data: session } = await auth.getSession();
+      if (session?.user) redirect(next);
+    } catch {
+      // Show the form if session lookup fails.
+    }
   }
 
   return (

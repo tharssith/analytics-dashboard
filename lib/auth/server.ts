@@ -6,5 +6,6 @@ export const auth = createNeonAuth({
     secret:
       process.env.NEON_AUTH_COOKIE_SECRET ||
       "unconfigured-neon-auth-cookie-secret-key",
+    sameSite: "lax",
   },
 });
