@@ -75,7 +75,8 @@ export function LoginForm({ next }: { next: string }) {
         name: displayName(email),
       });
       if (!signedUp.error) {
-        if (!signedUp.data?.session) {
+        const { data: createdSession } = await authClient.getSession();
+        if (!createdSession?.user) {
           const afterSignUp = await authClient.signIn.email({ email, password });
           if (afterSignUp.error) {
             setError(afterSignUp.error.message || "Account created, but sign-in failed. Click Log In.");
