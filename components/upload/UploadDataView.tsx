@@ -25,12 +25,19 @@ import {
 import { dataset, uniqueDepartments } from "@/lib/data";
 import {
   buildLocalProfile,
+  isNumericColumn,
   withKind,
   type DatasetKind,
   type DatasetProfile,
 } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
 import { clearUploadDraft, writeUploadDraft } from "@/lib/upload-draft";
+import {
+  shouldShowChoice,
+  stageAfterChoice,
+  type UploadPrepMode,
+  type UploadStage,
+} from "@/lib/upload-flow";
 import {
   applyValueFixes,
   failingRowIds,
@@ -50,13 +57,8 @@ function remainingIssuesMessage(issues: CellIssue[]): string {
   } ${issueCount} validation issue${issueCount === 1 ? "" : "s"}. Fix the highlighted cells before saving.`;
 }
 
-type Mode = "ai" | "manual";
-type Stage =
-  | "choice"
-  | "mapping"
-  | "ai-fixes"
-  | "ready"
-  | "saved";
+type Mode = UploadPrepMode;
+type Stage = UploadStage;
 
 export function UploadDataView() {
   const router = useRouter();
@@ -117,35 +119,36 @@ export function UploadDataView() {
       }
       setHeaders(raw.headers);
       setRawRows(raw.rows);
-      const local = buildLocalProfile(file.name, raw.headers, raw.rows);
-      setProfile(local);
-      setTypeLoading(true);
-      try {
-        const response = await fetch("/api/detect-dataset", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name,
-            headers: raw.headers,
-            rows: raw.rows.slice(0, 25),
-          }),
-        });
-        const detected = (await response.json()) as DatasetProfile;
-        if (detected?.kind) setProfile({ ...detected, filename: file.name, headers: raw.headers });
-      } catch {
-        setProfile(local);
-      } finally {
-        setTypeLoading(false);
-      }
+      setProfile(buildLocalProfile(file.name, raw.headers, raw.rows));
       setStage("choice");
     } catch {
       setParseError("Could not read that file. Use a CSV or Excel (.xlsx) spreadsheet.");
     }
   }
 
-  async function chooseMode(nextMode: Mode) {
+  async function detectProfile(current: DatasetProfile): Promise<DatasetProfile> {
+    try {
+      const response = await fetch("/api/detect-dataset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: current.filename,
+          headers,
+          rows: rawRows.slice(0, 25),
+        }),
+      });
+      const detected = (await response.json()) as DatasetProfile;
+      if (detected?.kind) {
+        return { ...detected, filename: current.filename, headers };
+      }
+    } catch {
+      // Keep the local profile if detection fails.
+    }
+    return current;
+  }
+
+  async function startHrMapping(nextMode: Mode) {
     const fileHeaders = headers;
-    setMode(nextMode);
     setStage("mapping");
     setSaveError(null);
     setMappingError(null);
@@ -211,6 +214,51 @@ export function UploadDataView() {
       }
     } finally {
       if (mapRequest.current === requestId) setMappingLoading(false);
+    }
+  }
+
+  async function chooseMode(nextMode: Mode) {
+    setMode(nextMode);
+    setSaveError(null);
+    setMappingError(null);
+    const local =
+      profile ??
+      (fileName ? buildLocalProfile(fileName, headers, rawRows) : null);
+    if (!local) return;
+    setProfile(local);
+    const initialStage = stageAfterChoice(local.kind);
+    setStage(initialStage);
+    if (nextMode === "manual") {
+      if (initialStage === "mapping") await startHrMapping(nextMode);
+      return;
+    }
+    setTypeLoading(true);
+    const nextProfile = await detectProfile(local);
+    setProfile(nextProfile);
+    setTypeLoading(false);
+    if (stageAfterChoice(nextProfile.kind) === "mapping") {
+      await startHrMapping(nextMode);
+      return;
+    }
+    setStage("roles");
+  }
+
+  function metricsFor(timeField: string | null, categoryField: string | null): string[] {
+    return headers.filter(
+      (header) =>
+        header !== timeField &&
+        header !== categoryField &&
+        isNumericColumn(rawRows, header),
+    );
+  }
+
+  function onKindChange(kind: DatasetKind) {
+    setProfile((current) => (current ? withKind(current, kind) : current));
+    if (!mode) return;
+    if (kind === "hr" && stage === "roles") {
+      void startHrMapping(mode);
+    } else if (kind !== "hr" && stage === "mapping") {
+      setStage("roles");
     }
   }
 
@@ -456,27 +504,50 @@ export function UploadDataView() {
         {parseError ? <p className="mt-3 text-sm text-rag-red">{parseError}</p> : null}
       </Card>
 
-      {profile && rawRows.length > 0 ? (
+      {shouldShowChoice(stage, rawRows.length) ? (
+        <ChoiceStep
+          fileName={fileName ?? "File"}
+          rowCount={rawRows.length}
+          onChoose={(next) => void chooseMode(next)}
+        />
+      ) : null}
+
+      {profile && rawRows.length > 0 && stage !== "choice" && stage !== "saved" ? (
         <DatasetTypeCard
           profile={profile}
           loading={typeLoading}
-          onKindChange={(kind: DatasetKind) => setProfile((current) => (current ? withKind(current, kind) : current))}
+          aiAssisted={mode === "ai"}
+          onKindChange={onKindChange}
           onTimeChange={(field) =>
-            setProfile((current) => (current ? { ...current, timeField: field || null } : current))
+            setProfile((current) =>
+              current
+                ? {
+                    ...current,
+                    timeField: field || null,
+                    metricFields: metricsFor(field || null, current.categoryField),
+                  }
+                : current,
+            )
           }
           onCategoryChange={(field) =>
             setProfile((current) =>
-              current ? { ...current, categoryField: field || null } : current,
+              current
+                ? {
+                    ...current,
+                    categoryField: field || null,
+                    metricFields: metricsFor(current.timeField, field || null),
+                  }
+                : current,
             )
           }
         />
       ) : null}
 
-      {profile && profile.kind !== "hr" && rawRows.length > 0 && stage === "choice" ? (
+      {stage === "roles" && profile && profile.kind !== "hr" ? (
         <div className="mb-5 max-w-xl">
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || typeLoading}
             onClick={() => void saveGenericDataset()}
             className={navyButtonClass}
           >
@@ -485,15 +556,7 @@ export function UploadDataView() {
         </div>
       ) : null}
 
-      {rawRows.length > 0 && stage === "choice" && (!profile || profile.kind === "hr") ? (
-        <ChoiceStep
-          fileName={fileName ?? "File"}
-          rowCount={rawRows.length}
-          onChoose={(next) => void chooseMode(next)}
-        />
-      ) : null}
-
-      {stage === "mapping" && mode ? (
+      {stage === "mapping" && mode && (!profile || profile.kind === "hr") ? (
         <ColumnMappingForm
           key={`${fileName}:${headers.join("|")}`}
           headers={headers}

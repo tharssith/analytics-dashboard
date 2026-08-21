@@ -7,12 +7,14 @@ import { selectClass } from "@/components/upload/upload-ui";
 export function DatasetTypeCard({
   profile,
   loading,
+  aiAssisted = false,
   onKindChange,
   onTimeChange,
   onCategoryChange,
 }: {
   profile: DatasetProfile;
   loading?: boolean;
+  aiAssisted?: boolean;
   onKindChange: (kind: DatasetKind) => void;
   onTimeChange: (field: string) => void;
   onCategoryChange: (field: string) => void;
@@ -21,8 +23,9 @@ export function DatasetTypeCard({
     <Card className="mb-5 max-w-xl p-5">
       <h2 className="text-base font-semibold text-foreground">File type</h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        AI compares the file name with the column headers, then the dashboard
-        and analysis follow this type.
+        {aiAssisted
+          ? "AI compared the file name with the column headers. Review the type and columns before continuing."
+          : "Choose the dataset type and which columns are time and category. The dashboard follows these choices."}
       </p>
       {loading ? (
         <p className="mt-3 text-sm text-muted">Checking file name against columns…</p>

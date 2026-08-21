@@ -8,6 +8,8 @@ import {
   validateMappedRows,
 } from "../lib/csv";
 import { parseRawXlsx } from "../lib/spreadsheet";
+import { buildLocalProfile } from "../lib/dataset";
+import { shouldShowChoice, stageAfterChoice } from "../lib/upload-flow";
 
 const csv = `Period,Dept,Emp Count,Target HC,Hires,Exits,Days to Hire,Referral %,Job Board %,Agency %
 2024-11,Sales,47,51,3,2,33,40,35,25
@@ -209,3 +211,22 @@ assert.equal(salesMap.headcount, "");
 assert.equal(salesMap.target_headcount, "");
 assert.equal(salesMap.new_hires, "");
 console.log("styled sales workbook keeps Order Date headers and does not fake HR matches");
+
+assert.equal(shouldShowChoice("choice", 12), true);
+assert.equal(shouldShowChoice("choice", 0), false);
+assert.equal(shouldShowChoice("roles", 12), false);
+assert.equal(shouldShowChoice("mapping", 12), false);
+assert.equal(stageAfterChoice("hr"), "mapping");
+assert.equal(stageAfterChoice(null), "mapping");
+assert.equal(stageAfterChoice("generic"), "roles");
+assert.equal(stageAfterChoice("sales"), "roles");
+console.log("choice screen is first for every parsed file; HR goes to mapping, other types go to roles");
+
+const hrProfile = buildLocalProfile("northstar-hr.csv", titledRaw.headers, titledRaw.rows);
+assert.equal(hrProfile.kind, "hr");
+assert.equal(stageAfterChoice(hrProfile.kind), "mapping");
+const salesProfile = buildLocalProfile("Power Stations.xlsx", salesRaw.headers, salesRaw.rows);
+assert.equal(salesProfile.kind === "hr", false);
+assert.equal(stageAfterChoice(salesProfile.kind), "roles");
+console.log("Northstar HR aliases still map required fields; general files skip HR mapping");
+
