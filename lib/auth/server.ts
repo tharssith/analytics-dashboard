@@ -8,4 +8,5 @@ export const auth = createNeonAuth({
       "unconfigured-neon-auth-cookie-secret-key",
     sameSite: "lax",
   },
+  logLevel: "warn",
 });

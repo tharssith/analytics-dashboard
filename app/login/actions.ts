@@ -26,7 +26,17 @@ function displayName(email: string): string {
   return local && local.length > 0 ? local : "Analyst";
 }
 
-export async function authAction(
+function alreadyRegistered(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("already") ||
+    lower.includes("exists") ||
+    lower.includes("registered") ||
+    lower.includes("user_already_exists")
+  );
+}
+
+export async function signupAction(
   _prev: { error: string } | null,
   formData: FormData,
 ): Promise<{ error: string }> {
@@ -34,9 +44,7 @@ export async function authAction(
     return { error: "Neon Auth is not configured." };
   }
 
-  const intent = String(formData.get("intent") ?? "login");
   const { email, password, next } = credentials(formData);
-
   if (!email || !password) {
     return { error: "Enter an email and password." };
   }
@@ -44,34 +52,57 @@ export async function authAction(
     return { error: "Password must be at least 8 characters." };
   }
 
-  if (intent === "signup") {
-    const { error } = await auth.signUp.email({
-      email,
-      password,
-      name: displayName(email),
-    });
-    if (error) {
-      const message = (error.message ?? "Failed to create account").toLowerCase();
-      if (message.includes("already") || message.includes("exists")) {
-        return { error: "That email already has an account. Log in instead." };
-      }
-      return { error: error.message ?? "Failed to create account." };
-    }
-    redirect(next);
+  const { error } = await auth.signUp.email({
+    email,
+    password,
+    name: displayName(email),
+  });
+  if (error && !alreadyRegistered(error.message ?? "")) {
+    return { error: error.message || "Could not create that account." };
   }
 
-  const { error } = await auth.signIn.email({ email, password });
   if (error) {
-    return { error: "Invalid email or password." };
+    const signedIn = await auth.signIn.email({ email, password });
+    if (signedIn.error) {
+      return {
+        error: "That email already has an account. Use the same password and click Log In.",
+      };
+    }
   }
+
   redirect(next);
 }
 
 export async function loginAction(
+  _prev: { error: string } | null,
+  formData: FormData,
+): Promise<{ error: string }> {
+  if (!isNeonAuthConfigured()) {
+    return { error: "Neon Auth is not configured." };
+  }
+
+  const { email, password, next } = credentials(formData);
+  if (!email || !password) {
+    return { error: "Enter an email and password." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+
+  const { error } = await auth.signIn.email({ email, password });
+  if (error) {
+    return {
+      error: "No account for that email yet, or the password is wrong. Click Create account if you are new.",
+    };
+  }
+  redirect(next);
+}
+
+export async function authAction(
   prev: { error: string } | null,
   formData: FormData,
 ): Promise<{ error: string }> {
-  return authAction(prev, formData);
+  return loginAction(prev, formData);
 }
 
 export async function logoutAction() {
