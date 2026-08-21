@@ -10,12 +10,12 @@ import { ForecastChart } from "@/components/predict/ForecastChart";
 import { WhatIfSlider } from "@/components/predict/WhatIfSlider";
 import { DownloadReportButton } from "@/components/report/DownloadReportButton";
 import { QaPanel } from "@/components/qa/QaPanel";
-import { GenericBreakdownChart, GenericTrendChart } from "@/components/dataset/GenericCharts";
+import { GenericAnalyticsView } from "@/components/dataset/GenericAnalyticsView";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
 import { dataset as company } from "@/lib/data";
-import { KIND_LABELS, computeGenericAnalytics } from "@/lib/dataset";
+import { KIND_LABELS } from "@/lib/dataset";
 import { diagnoseKpi } from "@/lib/diagnose";
 import { useFilters } from "@/lib/filters-context";
 import { computeKpis } from "@/lib/kpis";
@@ -51,10 +51,6 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
   const [bonusPct, setBonusPct] = useState(0);
 
   const kpis = useMemo(() => computeKpis(records), [records]);
-  const generic = useMemo(
-    () => (dataset && !isHrDashboard ? computeGenericAnalytics(genericRows, dataset) : null),
-    [dataset, genericRows, isHrDashboard],
-  );
   const diagnoses = useMemo(() => {
     const next: Partial<Record<KpiId, ReturnType<typeof diagnoseKpi>>> = {};
     for (const tile of kpis.tiles) {
@@ -83,7 +79,7 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
           </h1>
           <p className="mt-1 text-sm text-muted">
             {dataset && !isHrDashboard
-              ? `${dataset.filename} · ${generic?.rowCount ?? 0} rows · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
+              ? `${dataset.filename} · ${genericRows.length.toLocaleString("en-US")} rows · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
               : `HQ ${company.company.hq} · Monitor, diagnose, and forecast workforce health`}
           </p>
         </header>
@@ -106,24 +102,8 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
 
         {loading || (dataError && isHrDashboard && records.length === 0) ? (
           <DashboardSkeleton />
-        ) : !isHrDashboard && generic ? (
-          <>
-            <div className="grid grid-cols-12 gap-4">
-              {generic.tiles.map((tile) => (
-                <Card key={tile.id} className="col-span-12 sm:col-span-6 xl:col-span-3">
-                  <KpiTile tile={tile} expanded={false} onToggle={() => undefined} />
-                </Card>
-              ))}
-            </div>
-            <div className="mt-6 grid grid-cols-12 gap-4">
-              <div className="col-span-12 lg:col-span-8">
-                <GenericTrendChart title={generic.seriesLabel} points={generic.series} />
-              </div>
-              <div className="col-span-12 lg:col-span-4">
-                <GenericBreakdownChart title={generic.breakdownLabel} points={generic.breakdown} />
-              </div>
-            </div>
-          </>
+        ) : !isHrDashboard && dataset ? (
+          <GenericAnalyticsView dataset={dataset} rows={genericRows} />
         ) : (
           <>
             <div className="grid grid-cols-12 gap-4">

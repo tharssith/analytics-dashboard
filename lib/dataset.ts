@@ -130,16 +130,37 @@ export function inferRoles(
   return { timeField, categoryField, metricFields };
 }
 
+function monthKeyFromUtc(date: Date): string | null {
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getUTCFullYear();
+  if (year < 1800 || year > 2200) return null;
+  return `${year}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function excelSerialToMonthKey(serial: number): string | null {
+  if (!Number.isFinite(serial) || serial < 1 || serial > 2_958_465) return null;
+  return monthKeyFromUtc(
+    new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86_400_000),
+  );
+}
+
 export function toMonthKey(value: string): string | null {
   const trimmed = value.trim();
-  if (/^\d{4}-\d{2}$/.test(trimmed)) return trimmed;
-  const iso = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (iso) return iso[1].slice(0, 7);
-  const parsed = Date.parse(trimmed);
-  if (Number.isFinite(parsed)) {
-    const date = new Date(parsed);
-    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    return monthKeyFromUtc(new Date(`${trimmed}-01T00:00:00Z`));
   }
+  const iso = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return monthKeyFromUtc(new Date(`${iso[1]}T00:00:00Z`));
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    const numeric = Number(trimmed);
+    if (trimmed.length === 4 && numeric >= 1900 && numeric <= 2100) {
+      return `${trimmed}-01`;
+    }
+    return excelSerialToMonthKey(numeric);
+  }
+  const parsed = Date.parse(trimmed);
+  if (Number.isFinite(parsed)) return monthKeyFromUtc(new Date(parsed));
   return null;
 }
 
@@ -244,30 +265,46 @@ export function computeGenericAnalytics(
   profile: DatasetProfile,
 ): GenericAnalytics {
   const metrics = profile.metricFields.slice(0, 4);
+  const sums = metrics.map(() => 0);
+  const counts = metrics.map(() => 0);
+  const monthSums = metrics.map(() => new Map<string, number>());
+  const categoryTotals = new Map<string, number>();
+  const primary = metrics[0] ?? null;
+
+  for (const row of rows) {
+    const month = profile.timeField ? toMonthKey(row[profile.timeField] ?? "") : null;
+    const values = metrics.map((field) => parseNumber(row[field] ?? ""));
+    values.forEach((value, index) => {
+      if (value == null) return;
+      sums[index] += value;
+      counts[index] += 1;
+      if (month) {
+        const bucket = monthSums[index];
+        bucket.set(month, (bucket.get(month) ?? 0) + value);
+      }
+    });
+    if (primary && profile.categoryField) {
+      const key = row[profile.categoryField] || "Unknown";
+      categoryTotals.set(
+        key,
+        (categoryTotals.get(key) ?? 0) + (values[0] ?? 0),
+      );
+    }
+  }
+
   const tiles: KpiTileModel[] = metrics.map((field, index) => {
-    const values = rows
-      .map((row) => parseNumber(row[field] ?? ""))
-      .filter((value): value is number => value != null);
-    const total = values.reduce((sum, value) => sum + value, 0);
-    const sparkline = profile.timeField
-      ? uniqueGenericMonths(rows, profile.timeField).map((month) => {
-          const monthRows = rows.filter(
-            (row) => toMonthKey(row[profile.timeField ?? ""] ?? "") === month,
-          );
-          const sum = monthRows.reduce(
-            (acc, row) => acc + (parseNumber(row[field] ?? "") ?? 0),
-            0,
-          );
-          return { month, value: sum };
-        })
-      : values.slice(-12).map((value, i) => ({ month: String(i + 1), value }));
-    const status: RagStatus | "neutral" = index === 0 ? "green" : "neutral";
+    const total = sums[index];
+    const count = counts[index];
+    const sparkline = [...monthSums[index].entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-24)
+      .map(([month, value]) => ({ month, value }));
     return {
       id: field,
       label: field,
       display: formatNumber(total),
-      context: `${values.length} values · avg ${formatNumber(values.length ? total / values.length : 0)}`,
-      status,
+      context: `${count} values · avg ${formatNumber(count ? total / count : 0)}`,
+      status: index === 0 ? "green" : "neutral",
       expandable: false,
       sparkline,
     };
@@ -285,31 +322,16 @@ export function computeGenericAnalytics(
     });
   }
 
-  const primary = metrics[0] ?? null;
-  const series: GenericPoint[] = [];
-  if (primary && profile.timeField) {
-    for (const month of uniqueGenericMonths(rows, profile.timeField)) {
-      const sum = rows
-        .filter((row) => toMonthKey(row[profile.timeField ?? ""] ?? "") === month)
-        .reduce((acc, row) => acc + (parseNumber(row[primary] ?? "") ?? 0), 0);
-      series.push({ label: month, value: sum });
-    }
-  }
+  const series: GenericPoint[] = primary
+    ? [...monthSums[0].entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([label, value]) => ({ label, value }))
+    : [];
 
-  const breakdown: GenericPoint[] = [];
-  if (primary && profile.categoryField) {
-    const totals = new Map<string, number>();
-    for (const row of rows) {
-      const key = row[profile.categoryField] || "Unknown";
-      totals.set(key, (totals.get(key) ?? 0) + (parseNumber(row[primary] ?? "") ?? 0));
-    }
-    breakdown.push(
-      ...[...totals.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([label, value]) => ({ label, value })),
-    );
-  }
+  const breakdown: GenericPoint[] = [...categoryTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
 
   return {
     title: `${KIND_LABELS[profile.kind]} analytics`,
@@ -318,7 +340,8 @@ export function computeGenericAnalytics(
     series,
     breakdown,
     seriesLabel: primary && profile.timeField ? `${primary} over time` : "Trend",
-    breakdownLabel: primary && profile.categoryField ? `${primary} by ${profile.categoryField}` : "Breakdown",
+    breakdownLabel:
+      primary && profile.categoryField ? `${primary} by ${profile.categoryField}` : "Breakdown",
     rowCount: rows.length,
   };
 }

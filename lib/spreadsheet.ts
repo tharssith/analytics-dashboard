@@ -121,11 +121,29 @@ export function isSpreadsheetFile(file: File): boolean {
   );
 }
 
+function isExcelDateNumber(cell: XLSX.CellObject): boolean {
+  if (cell.t === "d") return true;
+  if (cell.t !== "n" || typeof cell.v !== "number") return false;
+  const format = typeof cell.z === "string" ? cell.z : "";
+  return /[ymd]/i.test(format);
+}
+
+function excelSerialToIso(serial: number): string {
+  const date = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86_400_000);
+  if (Number.isNaN(date.getTime())) return String(serial);
+  return date.toISOString().slice(0, 10);
+}
+
 function fromExcelCell(cell: XLSX.CellObject | undefined): MatrixCell {
   if (!cell) return { header: "", data: "", kind: "empty" };
-  const rich =
-    Array.isArray(cell.r) ? cellString(cell.r) : "";
+  const rich = Array.isArray(cell.r) ? cellString(cell.r) : "";
   const header = headerLabel(rich || cell.w || cell.v);
+  if (cell.t === "d" && cell.v instanceof Date && !Number.isNaN(cell.v.getTime())) {
+    return { header, data: cell.v.toISOString().slice(0, 10), kind: "date" };
+  }
+  if (isExcelDateNumber(cell) && typeof cell.v === "number") {
+    return { header, data: excelSerialToIso(cell.v), kind: "date" };
+  }
   const data =
     typeof cell.v === "number" || typeof cell.v === "boolean"
       ? cellString(cell.v)
