@@ -267,6 +267,28 @@ export function emptyMapping(): ColumnMapping {
   };
 }
 
+export function identityHrMapping(): ColumnMapping {
+  const mapping = emptyMapping();
+  for (const field of REQUIRED_HEADERS) mapping[field] = field;
+  return mapping;
+}
+
+export function recordsToRawRows(records: HrRecord[]): RawCsvRow[] {
+  return records.map((record) => ({
+    month: record.month,
+    department: record.department,
+    headcount: String(record.headcount),
+    target_headcount: String(record.target_headcount),
+    new_hires: String(record.new_hires),
+    attrition_count: String(record.attrition_count),
+    time_to_hire_days:
+      record.time_to_hire_days == null ? "" : String(record.time_to_hire_days),
+    referral_pct: String(record.source_of_hire.referral_pct),
+    job_board_pct: String(record.source_of_hire.job_board_pct),
+    agency_pct: String(record.source_of_hire.agency_pct),
+  }));
+}
+
 export function exactHeaderMatch(
   field: RequiredHeader,
   headers: string[],

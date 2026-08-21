@@ -15,6 +15,7 @@ import {
   AlignRight,
   Bold,
   ClipboardPaste,
+  Columns3,
   Copy,
   Eraser,
   Filter,
@@ -40,6 +41,7 @@ import { toolbarButtonClass } from "@/components/filters/FilterBar";
 import {
   REQUIRED_HEADERS,
   applyColumnMapping,
+  emptyMapping,
   type ColumnMapping,
   type RawCsvRow,
   type RequiredHeader,
@@ -94,6 +96,15 @@ function styleKey(row: number, header: string): string {
 
 function emptyRow(headers: string[]): RawCsvRow {
   return Object.fromEntries(headers.map((header) => [header, ""]));
+}
+
+function uniqueHeader(base: string, existing: string[], ignore?: string): string {
+  const stem = base.trim() || "Column";
+  const used = new Set(existing.filter((header) => header !== ignore));
+  if (!used.has(stem)) return stem;
+  let index = 2;
+  while (used.has(`${stem} ${index}`)) index += 1;
+  return `${stem} ${index}`;
 }
 
 function cloneRows(rows: RawCsvRow[]): RawCsvRow[] {
@@ -208,24 +219,30 @@ export function SpreadsheetEditor({
   fileName,
   headers,
   rows,
-  mapping,
-  flaggedIds,
+  mapping = emptyMapping(),
+  flaggedIds = [],
   onRowsChange,
+  onHeadersChange,
   onCancel,
   onSave,
   busy,
   saveError,
+  validateHr,
+  saveLabel = "Save and Continue",
 }: {
   fileName: string;
   headers: string[];
   rows: RawCsvRow[];
-  mapping: ColumnMapping;
-  flaggedIds: string[];
+  mapping?: ColumnMapping;
+  flaggedIds?: string[];
   onRowsChange: (next: RawCsvRow[]) => void;
+  onHeadersChange?: (next: string[]) => void;
   onCancel: () => void;
   onSave: () => void;
   busy?: boolean;
   saveError?: string | null;
+  validateHr?: boolean;
+  saveLabel?: string;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [styles, setStyles] = useState<Record<string, CellStyle>>({});
@@ -241,18 +258,25 @@ export function SpreadsheetEditor({
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [clip, setClip] = useState<{ values: string[][]; styles: (CellStyle | undefined)[][] } | null>(null);
   const [painter, setPainter] = useState<CellStyle | null>(null);
-  const [filterFlagged, setFilterFlagged] = useState(true);
+  const [filterFlagged, setFilterFlagged] = useState(flaggedIds.length > 0);
   const [columnFilter, setColumnFilter] = useState("");
   const [find, setFind] = useState("");
   const [findIndex, setFindIndex] = useState(0);
   const [tableOn, setTableOn] = useState(true);
   const [highlightEmpty, setHighlightEmpty] = useState(false);
+  const [headerEditCol, setHeaderEditCol] = useState<number | null>(null);
+  const [headerDraft, setHeaderDraft] = useState("");
 
+  const hrChecks =
+    validateHr ?? REQUIRED_HEADERS.every((field) => Boolean(mapping[field]));
   const mappedRows = useMemo(
-    () => mappedRowsFromRaw(applyColumnMapping(rows, mapping)),
-    [rows, mapping],
+    () => (hrChecks ? mappedRowsFromRaw(applyColumnMapping(rows, mapping)) : []),
+    [hrChecks, rows, mapping],
   );
-  const issues = useMemo(() => inspectRows(mappedRows), [mappedRows]);
+  const issues = useMemo(
+    () => (hrChecks ? inspectRows(mappedRows) : []),
+    [hrChecks, mappedRows],
+  );
   const issueIndex = useMemo(() => {
     const map = new Map<string, CellIssue>();
     for (const issue of issues) {
@@ -317,6 +341,7 @@ export function SpreadsheetEditor({
   }, [headers, rows, styles]);
 
   const restore = (snapshot: Snapshot) => {
+    onHeadersChange?.(snapshot.headers);
     onRowsChange(snapshot.rows);
     setStyles(snapshot.styles);
   };
@@ -433,6 +458,59 @@ export function SpreadsheetEditor({
     const next = [...cloneRows(rows)];
     next.splice(at, 0, emptyRow(headers));
     onRowsChange(next);
+  }
+
+  function insertColumn() {
+    pushHistory();
+    const at = Math.min(headers.length, normalizeSelection(selection).colEnd + 1);
+    const name = uniqueHeader("Column", headers);
+    const nextHeaders = [...headers];
+    nextHeaders.splice(at, 0, name);
+    onHeadersChange?.(nextHeaders);
+    onRowsChange(rows.map((row) => ({ ...row, [name]: "" })));
+    setSelection({ row: selected.row, col: at, rowEnd: selected.row, colEnd: at });
+  }
+
+  function deleteColumns() {
+    const nextSel = normalizeSelection(selection);
+    if (headers.length <= 1) return;
+    pushHistory();
+    const remove = new Set(
+      headers.filter((_, index) => index >= nextSel.col && index <= nextSel.colEnd),
+    );
+    const nextHeaders = headers.filter((header) => !remove.has(header));
+    if (nextHeaders.length === 0) return;
+    onHeadersChange?.(nextHeaders);
+    onRowsChange(
+      rows.map((row) => {
+        const next = { ...row };
+        for (const header of remove) delete next[header];
+        return next;
+      }),
+    );
+    const col = Math.min(nextSel.col, nextHeaders.length - 1);
+    setSelection({ row: nextSel.row, col, rowEnd: nextSel.row, colEnd: col });
+  }
+
+  function renameHeader(col: number, nextName: string) {
+    const current = headers[col];
+    if (!current) return;
+    const name = uniqueHeader(nextName, headers, current);
+    if (name === current) {
+      setHeaderEditCol(null);
+      return;
+    }
+    pushHistory();
+    const nextHeaders = headers.map((header, index) => (index === col ? name : header));
+    onHeadersChange?.(nextHeaders);
+    onRowsChange(
+      rows.map((row) => {
+        const next = { ...row, [name]: row[current] ?? "" };
+        delete next[current];
+        return next;
+      }),
+    );
+    setHeaderEditCol(null);
   }
 
   function deleteRows() {
@@ -578,7 +656,9 @@ export function SpreadsheetEditor({
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">Edit data</p>
           <h1 className="text-base font-semibold text-foreground">{fileName}</h1>
           <p className="text-xs text-muted">
-            {resolved} of {flaggedIds.length || stillFailing.size} flagged rows resolved
+            {hrChecks
+              ? `${resolved} of ${flaggedIds.length || stillFailing.size} flagged rows resolved`
+              : `${rows.length.toLocaleString()} rows · click a cell or the formula bar to edit`}
             {activeHeader ? ` · ${activeHeader}` : ""}
           </p>
         </div>
@@ -587,7 +667,7 @@ export function SpreadsheetEditor({
             Cancel
           </button>
           <button type="button" disabled={busy} onClick={onSave} className={navyButtonClass}>
-            {busy ? "Saving…" : "Save and Continue"}
+            {busy ? "Saving…" : saveLabel}
           </button>
         </div>
       </div>
@@ -763,7 +843,13 @@ export function SpreadsheetEditor({
             <RibbonBtn label="Insert row" onClick={insertRow}>
               <Plus size={14} />
             </RibbonBtn>
+            <RibbonBtn label="Insert column" onClick={insertColumn}>
+              <Columns3 size={14} />
+            </RibbonBtn>
             <RibbonBtn label="Delete rows" onClick={deleteRows}>
+              <Trash2 size={14} />
+            </RibbonBtn>
+            <RibbonBtn label="Delete columns" onClick={deleteColumns}>
               <Trash2 size={14} />
             </RibbonBtn>
             <RibbonBtn label="Clear" onClick={() => clearCells("all")}>
@@ -780,9 +866,11 @@ export function SpreadsheetEditor({
             <RibbonBtn label="Sort Z to A" onClick={() => sortColumn("desc")}>
               <Filter size={14} />
             </RibbonBtn>
-            <RibbonBtn label="Flagged rows only" active={filterFlagged} onClick={() => setFilterFlagged((value) => !value)}>
-              <Search size={14} />
-            </RibbonBtn>
+            {flaggedIds.length > 0 ? (
+              <RibbonBtn label="Flagged rows only" active={filterFlagged} onClick={() => setFilterFlagged((value) => !value)}>
+                <Search size={14} />
+              </RibbonBtn>
+            ) : null}
             <input
               value={columnFilter}
               onChange={(event) => setColumnFilter(event.target.value)}
@@ -843,11 +931,11 @@ export function SpreadsheetEditor({
       </div>
 
       {saveError ? <p className="px-4 py-2 text-sm text-rag-red">{saveError}</p> : null}
-      {activeIssue ? (
+      {hrChecks && activeIssue ? (
         <p className="px-4 py-1 text-xs text-rag-red">
           {activeIssue.field} {activeIssue.message}
         </p>
-      ) : issues.length > 0 ? (
+      ) : hrChecks && issues.length > 0 ? (
         <p className="px-4 py-1 text-xs text-rag-red">
           {stillFailing.size} row{stillFailing.size === 1 ? "" : "s"} still fail validation. Fix the
           highlighted cells before saving.
@@ -868,18 +956,40 @@ export function SpreadsheetEditor({
               </th>
               {headers.map((header, col) => (
                 <th
-                  key={header}
+                  key={`${col}:${header}`}
                   onClick={(event) => selectCell(selected.row, col, event.shiftKey)}
+                  onDoubleClick={(event) => {
+                    event.preventDefault();
+                    setHeaderEditCol(col);
+                    setHeaderDraft(header);
+                  }}
                   className={`min-w-[8.5rem] border border-border px-2 py-1 text-xs font-semibold ${
                     tableOn ? "bg-navy text-white" : "bg-[#eee] text-foreground"
                   }`}
                 >
-                  {header}
-                  {reverseMapping.get(header) ? (
-                    <span className="ml-1 block text-[10px] font-normal opacity-80">
-                      → {reverseMapping.get(header)}
-                    </span>
-                  ) : null}
+                  {headerEditCol === col ? (
+                    <input
+                      autoFocus
+                      value={headerDraft}
+                      onChange={(event) => setHeaderDraft(event.target.value)}
+                      onBlur={() => renameHeader(col, headerDraft)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                        if (event.key === "Escape") setHeaderEditCol(null);
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                      className="h-6 w-full rounded-sm px-1 text-xs text-foreground outline-none"
+                    />
+                  ) : (
+                    <>
+                      {header}
+                      {reverseMapping.get(header) ? (
+                        <span className="ml-1 block text-[10px] font-normal opacity-80">
+                          → {reverseMapping.get(header)}
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                 </th>
               ))}
             </tr>
@@ -896,7 +1006,7 @@ export function SpreadsheetEditor({
                     const field = reverseMapping.get(header);
                     const issue = field ? issueIndex.get(`r${row}:${field}`) : undefined;
                     const live =
-                      editing && selected.row === row && selected.col === col && field
+                      hrChecks && editing && selected.row === row && selected.col === col && field
                         ? checkField(field, draft)
                         : issue;
                     const value = rows[row]?.[header] ?? "";
@@ -957,7 +1067,7 @@ export function SpreadsheetEditor({
                     );
                   })}
                   <td className="w-6 border border-transparent px-1 text-rag-green">
-                    {rowOk ? "✓" : ""}
+                    {hrChecks && rowOk ? "✓" : ""}
                   </td>
                 </tr>
               );

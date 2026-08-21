@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Upload } from "lucide-react";
+import { Pencil, Upload } from "lucide-react";
 import { DiagnosePanel } from "@/components/diagnose/DiagnosePanel";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { KpiTile } from "@/components/monitor/KpiTile";
@@ -91,6 +91,10 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
             extraActions={
               <>
                 {isHrDashboard ? <DownloadReportButton /> : null}
+                <Link href="/analytics/edit" className={toolbarButtonClass}>
+                  <Pencil size={16} className="text-navy" />
+                  Edit Data
+                </Link>
                 <Link href="/upload" className={toolbarButtonClass}>
                   <Upload size={16} className="text-navy" />
                   Upload data

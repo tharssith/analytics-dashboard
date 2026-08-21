@@ -54,6 +54,15 @@ export function UploadEditorView() {
     setSaveError(null);
   }
 
+  function updateHeaders(next: string[]) {
+    setDraft((current) => {
+      if (!current) return current;
+      const updated = { ...current, headers: next };
+      writeUploadDraft(updated);
+      return updated;
+    });
+  }
+
   async function save() {
     if (!draft) return;
     const mapped = mappedRowsFromRaw(applyColumnMapping(draft.rawRows, draft.mapping));
@@ -134,6 +143,7 @@ export function UploadEditorView() {
       busy={busy}
       saveError={saveError}
       onRowsChange={updateRows}
+      onHeadersChange={updateHeaders}
       onCancel={() => {
         clearUploadDraft();
         router.push("/upload");
