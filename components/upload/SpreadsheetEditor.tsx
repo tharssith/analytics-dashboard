@@ -2,10 +2,12 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -105,6 +107,21 @@ function uniqueHeader(base: string, existing: string[], ignore?: string): string
   let index = 2;
   while (used.has(`${stem} ${index}`)) index += 1;
   return `${stem} ${index}`;
+}
+
+function cellAddress(row: number, col: number): string {
+  let n = col + 1;
+  let letters = "";
+  while (n > 0) {
+    letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return `${letters}${row + 1}`;
+}
+
+function isPrintableKey(event: KeyboardEvent): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return false;
+  return event.key.length === 1;
 }
 
 function cloneRows(rows: RawCsvRow[]): RawCsvRow[] {
@@ -245,6 +262,12 @@ export function SpreadsheetEditor({
   saveLabel?: string;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const formulaRef = useRef<HTMLInputElement>(null);
+  const cellInputRef = useRef<HTMLInputElement>(null);
+  const editingRef = useRef(false);
+  const draftRef = useRef("");
+  const selectionRef = useRef<Selection>({ row: 0, col: 0, rowEnd: 0, colEnd: 0 });
+  const editFocusRef = useRef<"cell" | "formula" | null>(null);
   const [styles, setStyles] = useState<Record<string, CellStyle>>({});
   const [selection, setSelection] = useState<Selection>({
     row: 0,
@@ -324,6 +347,9 @@ export function SpreadsheetEditor({
 
   const resolved = flaggedIds.filter((id) => !stillFailing.has(id)).length;
   const selected = normalizeSelection(selection);
+  selectionRef.current = selected;
+  editingRef.current = editing;
+  draftRef.current = draft;
   const activeHeader = headers[selected.col] ?? headers[0] ?? "";
   const activeValue = rows[selected.row]?.[activeHeader] ?? "";
   const activeStyle = styles[styleKey(selected.row, activeHeader)] ?? {};
@@ -381,6 +407,56 @@ export function SpreadsheetEditor({
       rows.map((item, index) => (index === row ? { ...item, [header]: value } : item)),
     );
   }
+
+  function beginEdit(nextDraft: string, focus: "cell" | "formula") {
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+    editingRef.current = true;
+    setEditing(true);
+    editFocusRef.current = focus;
+  }
+
+  function finishEdit(save: boolean) {
+    if (!editingRef.current) return;
+    const sel = normalizeSelection(selectionRef.current);
+    const header = headers[sel.col] ?? "";
+    if (save && header) commitValue(sel.row, header, draftRef.current);
+    editingRef.current = false;
+    setEditing(false);
+  }
+
+  function onEditorBlur(event: FocusEvent<HTMLInputElement>) {
+    const related = event.relatedTarget;
+    if (
+      related instanceof Node &&
+      (related === formulaRef.current || related === cellInputRef.current)
+    ) {
+      return;
+    }
+    finishEdit(true);
+  }
+
+  function onDraftChange(value: string) {
+    draftRef.current = value;
+    setDraft(value);
+    if (!editingRef.current) {
+      editingRef.current = true;
+      setEditing(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!editing) return;
+    const focus = editFocusRef.current;
+    if (!focus) return;
+    editFocusRef.current = null;
+    const id = window.requestAnimationFrame(() => {
+      const el = focus === "formula" ? formulaRef.current : cellInputRef.current;
+      el?.focus();
+      el?.select();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [editing]);
 
   function patchStyles(mutate: (current: CellStyle) => CellStyle) {
     pushHistory();
@@ -623,8 +699,12 @@ export function SpreadsheetEditor({
     }
     if (event.key === "Enter" || event.key === "F2") {
       event.preventDefault();
-      setDraft(activeValue);
-      setEditing(true);
+      beginEdit(activeValue, "cell");
+      return;
+    }
+    if (isPrintableKey(event)) {
+      event.preventDefault();
+      beginEdit(event.key, "cell");
       return;
     }
     const move = { row: selected.row, col: selected.col };
@@ -638,6 +718,7 @@ export function SpreadsheetEditor({
   }
 
   function selectCell(row: number, col: number, extend: boolean) {
+    if (editingRef.current && !extend) finishEdit(true);
     if (painter) {
       patchStyles(() => ({ ...painter }));
       setPainter(null);
@@ -658,7 +739,7 @@ export function SpreadsheetEditor({
           <p className="text-xs text-muted">
             {hrChecks
               ? `${resolved} of ${flaggedIds.length || stillFailing.size} flagged rows resolved`
-              : `${rows.length.toLocaleString()} rows · click a cell or the formula bar to edit`}
+              : `${rows.length.toLocaleString()} rows · select a cell, then type or edit in the formula bar`}
             {activeHeader ? ` · ${activeHeader}` : ""}
           </p>
         </div>
@@ -898,36 +979,36 @@ export function SpreadsheetEditor({
 
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-sm">
         <span className="w-16 shrink-0 text-xs font-medium text-muted">
-          {activeHeader ? `${selected.row + 2}${String.fromCharCode(65 + (selected.col % 26))}` : ""}
+          {activeHeader ? cellAddress(selected.row, selected.col) : ""}
         </span>
         <Type size={14} className="text-muted" />
-        {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={() => {
-              commitValue(selected.row, activeHeader, draft);
-              setEditing(false);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur();
-              if (event.key === "Escape") setEditing(false);
-            }}
-            className="h-7 flex-1 rounded-sm border border-navy px-2 text-sm outline-none"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(activeValue);
-              setEditing(true);
-            }}
-            className="h-7 flex-1 truncate rounded-sm border border-border bg-white px-2 text-left text-sm"
-          >
-            {activeValue || " "}
-          </button>
-        )}
+        <input
+          ref={formulaRef}
+          value={editing ? draft : activeValue}
+          onFocus={() => {
+            if (editingRef.current) return;
+            draftRef.current = activeValue;
+            setDraft(activeValue);
+            editingRef.current = true;
+            setEditing(true);
+            editFocusRef.current = null;
+          }}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onBlur={onEditorBlur}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              finishEdit(true);
+              gridRef.current?.focus();
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              finishEdit(false);
+              gridRef.current?.focus();
+            }
+          }}
+          className="h-7 flex-1 rounded-sm border border-navy bg-white px-2 text-sm outline-none"
+        />
       </div>
 
       {saveError ? <p className="px-4 py-2 text-sm text-rag-red">{saveError}</p> : null}
@@ -1024,8 +1105,7 @@ export function SpreadsheetEditor({
                         }}
                         onDoubleClick={() => {
                           setSelection({ row, col, rowEnd: row, colEnd: col });
-                          setDraft(value);
-                          setEditing(true);
+                          beginEdit(value, "cell");
                         }}
                         className={`min-w-[8.5rem] border px-0 py-0 ${
                           style?.border || tableOn ? "border-border" : "border-border/60"
@@ -1040,16 +1120,21 @@ export function SpreadsheetEditor({
                       >
                         {editing && selected.row === row && selected.col === col ? (
                           <input
-                            autoFocus
+                            ref={cellInputRef}
                             value={draft}
-                            onChange={(event) => setDraft(event.target.value)}
-                            onBlur={() => {
-                              commitValue(row, header, draft);
-                              setEditing(false);
-                            }}
+                            onChange={(event) => onDraftChange(event.target.value)}
+                            onBlur={onEditorBlur}
                             onKeyDown={(event) => {
-                              if (event.key === "Enter") event.currentTarget.blur();
-                              if (event.key === "Escape") setEditing(false);
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                finishEdit(true);
+                                gridRef.current?.focus();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                finishEdit(false);
+                                gridRef.current?.focus();
+                              }
                             }}
                             className="h-8 w-full bg-white px-2 text-sm outline-none"
                           />
