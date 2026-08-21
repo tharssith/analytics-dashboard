@@ -18,23 +18,33 @@ function displayName(email: string): string {
   return local && local.length > 0 ? local : "Analyst";
 }
 
-function alreadyRegistered(message: string): boolean {
-  const lower = message.toLowerCase();
-  return lower.includes("already") || lower.includes("exists") || lower.includes("registered");
+function errorText(error: { message?: string | null; code?: string } | null): string {
+  return (error?.message || error?.code || "").toLowerCase();
+}
+
+function alreadyRegistered(error: { message?: string | null; code?: string } | null): boolean {
+  const text = errorText(error);
+  return (
+    text.includes("already") ||
+    text.includes("exists") ||
+    text.includes("registered") ||
+    text.includes("user_already_exists")
+  );
+}
+
+function invalidCredentials(error: { message?: string | null; code?: string } | null): boolean {
+  const text = errorText(error);
+  return (
+    text.includes("invalid email") ||
+    text.includes("invalid_email_or_password") ||
+    text.includes("invalid password")
+  );
 }
 
 export function LoginForm({ next }: { next: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<"login" | "signup" | null>(null);
-
-  async function signIn(email: string, password: string): Promise<string | null> {
-    const { error: signInError } = await authClient.signIn.email({ email, password });
-    if (signInError) {
-      return signInError.message || "Invalid email or password.";
-    }
-    return null;
-  }
 
   async function continueWith(intent: "login" | "signup", form: HTMLFormElement) {
     const email = readField(form, "email");
@@ -52,30 +62,42 @@ export function LoginForm({ next }: { next: string }) {
     setError(null);
     setPending(intent);
     try {
-      if (intent === "signup") {
-        const { error: signUpError } = await authClient.signUp.email({
-          email,
-          password,
-          name: displayName(email),
-        });
-        if (signUpError && !alreadyRegistered(signUpError.message ?? "")) {
-          setError(signUpError.message || "Could not create that account.");
-          return;
-        }
-      }
-
-      const signInError = await signIn(email, password);
-      if (signInError) {
-        setError(
-          intent === "signup"
-            ? signInError
-            : "Invalid email or password. Create an account if you are new.",
-        );
+      const signedIn = await authClient.signIn.email({ email, password });
+      if (!signedIn.error) {
+        router.push(next);
+        router.refresh();
         return;
       }
 
-      router.push(next);
-      router.refresh();
+      const signedUp = await authClient.signUp.email({
+        email,
+        password,
+        name: displayName(email),
+      });
+      if (!signedUp.error) {
+        if (!signedUp.data?.session) {
+          const afterSignUp = await authClient.signIn.email({ email, password });
+          if (afterSignUp.error) {
+            setError(afterSignUp.error.message || "Account created, but sign-in failed. Click Log In.");
+            return;
+          }
+        }
+        router.push(next);
+        router.refresh();
+        return;
+      }
+
+      if (alreadyRegistered(signedUp.error)) {
+        setError("That email already has an account. Use the same password and click Log In.");
+        return;
+      }
+
+      if (invalidCredentials(signedIn.error) && invalidCredentials(signedUp.error)) {
+        setError("Could not sign in with that email and password. Try Create account once, then Log In.");
+        return;
+      }
+
+      setError(signedUp.error.message || signedIn.error.message || "Could not sign in.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reach authentication.");
     } finally {
@@ -136,8 +158,8 @@ export function LoginForm({ next }: { next: string }) {
         {pending === "signup" ? "Continuing…" : "Create account"}
       </button>
       <p className="text-center text-xs leading-5 text-muted">
-        Use a real email and a password of at least 8 characters. Create account
-        if you are new; log in if you already have one.
+        Either button signs you in, and creates the account if it does not
+        exist yet. Use a password of at least 8 characters.
       </p>
     </form>
   );
