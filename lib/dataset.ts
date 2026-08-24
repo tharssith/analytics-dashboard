@@ -96,7 +96,7 @@ function looksLikeCategory(header: string): boolean {
   );
 }
 
-function parseNumber(value: string): number | null {
+export function parseNumber(value: string): number | null {
   const trimmed = value.replace(/[%$,]/g, "").trim();
   if (trimmed === "") return null;
   const parsed = Number(trimmed);
