@@ -4,15 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { toolbarButtonClass } from "@/components/filters/FilterBar";
 import type { RawCsvRow } from "@/lib/csv";
-import {
-  downloadExcelReport,
-  downloadPdfReport,
-  downloadPptReport,
-} from "@/lib/export-files";
-import { buildExportModel, insightPayload, type ExportInsight } from "@/lib/export-model";
+import { buildExportModel } from "@/lib/export-model";
 import { useFilters } from "@/lib/filters-context";
 
 type Format = "xlsx" | "pptx" | "pdf";
+
+function yieldToPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
 
 export function ExportMenu({
   fileName,
@@ -47,6 +48,7 @@ export function ExportMenu({
     if (busy) return;
     setBusy(format);
     setOpen(false);
+    await yieldToPaint();
     try {
       const model = buildExportModel({
         filename: fileName,
@@ -59,28 +61,17 @@ export function ExportMenu({
         dateRangeLabel,
         categoryLabel: departmentLabel,
       });
-      try {
-        const response = await fetch("/api/export-insight", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(insightPayload(model)),
-        });
-        if (response.ok) {
-          const payload = (await response.json()) as { insight?: ExportInsight };
-          if (payload.insight?.prediction) model.insight = payload.insight;
-        }
-      } catch {
-        // Keep the local forecast narrative if Grok is unavailable.
-      }
-      if (format === "xlsx") downloadExcelReport(model);
-      else if (format === "pptx") await downloadPptReport(model);
-      else downloadPdfReport(model);
+      const files = await import("@/lib/export-files");
+      if (format === "xlsx") await files.downloadExcelReport(model);
+      else if (format === "pptx") await files.downloadPptReport(model);
+      else await files.downloadPdfReport(model);
     } finally {
       setBusy(null);
     }
   }
 
-  const label = busy === "xlsx" ? "Excel…" : busy === "pptx" ? "PowerPoint…" : busy === "pdf" ? "PDF…" : "Export";
+  const label =
+    busy === "xlsx" ? "Excel…" : busy === "pptx" ? "PowerPoint…" : busy === "pdf" ? "PDF…" : "Export";
 
   return (
     <div ref={rootRef} className="relative">

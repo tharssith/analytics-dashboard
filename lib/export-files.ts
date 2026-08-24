@@ -1,6 +1,3 @@
-import { jsPDF } from "jspdf";
-import PptxGenJS from "pptxgenjs";
-import * as XLSX from "xlsx";
 import { downloadBlob, exportStamp, fileSafe } from "@/lib/download-file";
 import {
   formatExportNumber,
@@ -23,7 +20,8 @@ function outcomeColor(model: ExportModel): string {
   return AMBER;
 }
 
-export function downloadExcelReport(model: ExportModel): void {
+export async function downloadExcelReport(model: ExportModel): Promise<void> {
+  const XLSX = await import("xlsx");
   const book = XLSX.utils.book_new();
   const report = [
     ["Northstar Financial export"],
@@ -66,13 +64,17 @@ export function downloadExcelReport(model: ExportModel): void {
   ];
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(moves), "Ups and downs");
 
-  const data = [
-    model.headers,
-    ...model.allRows.map((row) => model.headers.map((header) => row[header] ?? "")),
-  ];
-  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(data), "Data");
+  const dataSheet = XLSX.utils.json_to_sheet(model.allRows, {
+    header: model.headers,
+    skipHeader: false,
+  });
+  XLSX.utils.book_append_sheet(book, dataSheet, "Data");
 
-  const output = XLSX.write(book, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  const output = XLSX.write(book, {
+    bookType: "xlsx",
+    type: "array",
+    compression: false,
+  }) as ArrayBuffer;
   downloadBlob(
     new Blob([new Uint8Array(output)], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -82,6 +84,8 @@ export function downloadExcelReport(model: ExportModel): void {
 }
 
 export async function downloadPptReport(model: ExportModel): Promise<void> {
+  const mod = await import("pptxgenjs");
+  const PptxGenJS = mod.default;
   const pptx = new PptxGenJS();
   pptx.author = "Northstar Financial";
   pptx.title = `${model.filename} export`;
@@ -233,7 +237,8 @@ export async function downloadPptReport(model: ExportModel): Promise<void> {
   );
 }
 
-export function downloadPdfReport(model: ExportModel): void {
+export async function downloadPdfReport(model: ExportModel): Promise<void> {
+  const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const margin = 40;
