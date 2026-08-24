@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { navyButtonClass } from "@/components/upload/upload-ui";
 import { toolbarButtonClass } from "@/components/filters/FilterBar";
+import { ExportMenu } from "@/components/report/ExportMenu";
 import {
   REQUIRED_HEADERS,
   applyColumnMapping,
@@ -744,6 +745,7 @@ export function SpreadsheetEditor({
           </p>
         </div>
         <div className="flex gap-2">
+          <ExportMenu fileName={fileName} headers={headers} rows={rows} />
           <button type="button" onClick={onCancel} className={toolbarButtonClass}>
             Cancel
           </button>

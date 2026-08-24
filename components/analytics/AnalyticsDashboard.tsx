@@ -6,6 +6,7 @@ import { Pencil, Upload } from "lucide-react";
 import { DepartmentBreakdownChart } from "@/components/diagnose/DiagnosePanel";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { GenericAnalyticsView } from "@/components/dataset/GenericAnalyticsView";
+import { ExportMenu } from "@/components/report/ExportMenu";
 import { Card } from "@/components/ui/Card";
 import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
 import { dataset as company, filterRecords } from "@/lib/data";
@@ -76,6 +77,7 @@ export function AnalyticsDashboard() {
           actionIcon="back"
           extraActions={
             <>
+              <ExportMenu />
               <Link href="/analytics/edit" className={toolbarButtonClass}>
                 <Pencil size={16} className="text-navy" />
                 Edit Data

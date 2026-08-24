@@ -8,7 +8,7 @@ import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { KpiTile } from "@/components/monitor/KpiTile";
 import { ForecastChart } from "@/components/predict/ForecastChart";
 import { WhatIfSlider } from "@/components/predict/WhatIfSlider";
-import { DownloadReportButton } from "@/components/report/DownloadReportButton";
+import { ExportMenu } from "@/components/report/ExportMenu";
 import { QaPanel } from "@/components/qa/QaPanel";
 import { GenericAnalyticsView } from "@/components/dataset/GenericAnalyticsView";
 import { Card } from "@/components/ui/Card";
@@ -90,7 +90,7 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
             actionLabel="Analytics Dashboard →"
             extraActions={
               <>
-                {isHrDashboard ? <DownloadReportButton /> : null}
+                <ExportMenu />
                 <Link href="/analytics/edit" className={toolbarButtonClass}>
                   <Pencil size={16} className="text-navy" />
                   Edit Data
