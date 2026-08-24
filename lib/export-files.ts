@@ -48,6 +48,20 @@ export async function downloadExcelReport(model: ExportModel): Promise<void> {
     ["Rows in export", model.rowCount],
     ["Rows in file", model.fileRowCount],
     ["Columns", model.columnCount],
+    ...(model.analysis
+      ? [
+          [],
+          ["Analysis sheet", model.analysis.sheetName],
+          ["Visual", model.analysis.visual],
+          ["View", model.analysis.title],
+          ["Columns field", model.analysis.columns ?? ""],
+          ["Values field", model.analysis.values ?? ""],
+          ["Color field", model.analysis.color ?? ""],
+          ["Filter", model.analysis.filter],
+          ["Aggregation", model.analysis.agg],
+          ["Note", model.analysis.note],
+        ]
+      : []),
   ];
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(report), "Report");
 
@@ -63,6 +77,14 @@ export async function downloadExcelReport(model: ExportModel): Promise<void> {
     ]),
   ];
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(moves), "Ups and downs");
+
+  if (model.analysis && model.analysis.viewRows.length > 0) {
+    const analysisSheet = XLSX.utils.json_to_sheet(model.analysis.viewRows, {
+      header: model.analysis.viewHeaders,
+      skipHeader: false,
+    });
+    XLSX.utils.book_append_sheet(book, analysisSheet, "Analysis view");
+  }
 
   const dataSheet = XLSX.utils.json_to_sheet(model.allRows, {
     header: model.headers,
@@ -230,6 +252,47 @@ export async function downloadPptReport(model: ExportModel): Promise<void> {
     fontSize: 12,
   });
 
+  if (model.analysis && model.analysis.viewRows.length > 0) {
+    const analysis = pptx.addSlide();
+    analysis.addText(model.analysis.sheetName, {
+      x: 0.5,
+      y: 0.25,
+      w: 9,
+      h: 0.3,
+      color: NAVY,
+      fontSize: 16,
+      bold: true,
+    });
+    analysis.addText(model.analysis.title, {
+      x: 0.5,
+      y: 0.55,
+      w: 9,
+      h: 0.3,
+      color: "64748B",
+      fontSize: 12,
+    });
+    const labels = model.analysis.viewRows.map((row) => row.Category || "");
+    const values = model.analysis.viewRows.map((row) => Number(row.Total ?? 0));
+    if (labels.length >= 2 && values.some((value) => Number.isFinite(value))) {
+      analysis.addChart(pptx.ChartType.bar, [
+        { name: model.analysis.values || "Value", labels, values },
+      ], { x: 0.4, y: 0.95, w: 9.2, h: 2.6, showValue: true });
+    }
+    analysis.addTable(
+      [
+        [
+          { text: "Category", options: { fill: { color: NAVY }, color: "FFFFFF", bold: true } },
+          { text: "Total", options: { fill: { color: NAVY }, color: "FFFFFF", bold: true } },
+        ],
+        ...model.analysis.viewRows.slice(0, 10).map((row) => [
+          { text: row.Category || "" },
+          { text: formatExportNumber(Number(row.Total ?? 0)) },
+        ]),
+      ],
+      { x: 0.4, y: 3.65, w: 9.2, colW: [6.2, 3], fontSize: 11, border: { color: "E2E8F0" } },
+    );
+  }
+
   const blob = (await pptx.write({ outputType: "blob" })) as Blob;
   downloadBlob(
     blob,
@@ -306,6 +369,23 @@ export async function downloadPdfReport(model: ExportModel): Promise<void> {
   write(model.insight.prediction);
   for (const driver of model.insight.drivers) write(`• ${driver}`, { color: "475569" });
   write(model.forecast.localNarrative, { color: "64748B" });
+
+  if (model.analysis) {
+    write("Analysis view", { size: 14, color: NAVY, bold: true });
+    write(`${model.analysis.sheetName} · ${model.analysis.visual} · ${model.analysis.agg}`);
+    write(model.analysis.title, { bold: true });
+    write(
+      `Columns ${model.analysis.columns ?? "—"} · Values ${model.analysis.values ?? "—"} · Color ${model.analysis.color ?? "—"} · Filter ${model.analysis.filter}`,
+    );
+    if (model.analysis.note) write(model.analysis.note);
+    write(model.analysis.viewHeaders.join(" | "), { size: 8, bold: true, color: NAVY, gap: 2 });
+    for (const row of model.analysis.viewRows.slice(0, 20)) {
+      write(
+        model.analysis.viewHeaders.map((header) => row[header] ?? "").join(" | "),
+        { size: 8, color: "334155", gap: 1 },
+      );
+    }
+  }
 
   write("Data snapshot", { size: 14, color: NAVY, bold: true });
   write(model.headers.join(" | "), { size: 8, bold: true, color: NAVY, gap: 2 });

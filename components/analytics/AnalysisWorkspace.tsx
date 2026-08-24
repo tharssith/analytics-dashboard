@@ -38,9 +38,11 @@ import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
 import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
 import {
   buildViz,
+  applySheetFilter,
   classifyFields,
   defaultSheet,
   uniqueFieldValues,
+  vizToExportRows,
   workspaceTable,
   type AggKind,
   type CustomMeasure,
@@ -153,6 +155,23 @@ export function AnalysisWorkspace() {
 
   const spec = sheets[active] ?? sheets[0] ?? defaultSheet(fields, dataset);
   const viz = useMemo(() => buildViz(table.rows, spec, custom), [table.rows, spec, custom]);
+  const exportRows = useMemo(() => applySheetFilter(table.rows, spec), [table.rows, spec]);
+  const analysisExport = useMemo(() => {
+    const view = vizToExportRows(viz);
+    return {
+      sheetName: spec.name,
+      visual: spec.visual,
+      title: viz.title,
+      note,
+      columns: spec.category,
+      values: spec.measure,
+      color: spec.colorBy,
+      filter: spec.filterField ? `${spec.filterField}=${spec.filterValue}` : "All",
+      agg: spec.agg,
+      viewHeaders: view.headers,
+      viewRows: view.rows,
+    };
+  }, [spec, viz, note]);
   const dimensions = fields.filter((field) => field.kind === "dimension");
   const measures = [
     ...fields.filter((field) => field.kind === "measure"),
@@ -266,7 +285,13 @@ export function AnalysisWorkspace() {
         </RibbonGroup>
         <RibbonGroup label="Share">
           <div className="px-2 py-1">
-            <ExportMenu fileName={table.filename} headers={table.headers} rows={table.rows} />
+            <ExportMenu
+              fileName={`${table.filename}-${spec.name}`}
+              headers={table.headers}
+              rows={exportRows}
+              metricHint={spec.measure ?? undefined}
+              analysis={analysisExport}
+            />
           </div>
         </RibbonGroup>
       </div>

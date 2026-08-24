@@ -71,6 +71,21 @@ export type ExportModel = {
   headers: string[];
   previewRows: RawCsvRow[];
   allRows: RawCsvRow[];
+  analysis?: AnalysisExportSlice;
+};
+
+export type AnalysisExportSlice = {
+  sheetName: string;
+  visual: string;
+  title: string;
+  note: string;
+  columns: string | null;
+  values: string | null;
+  color: string | null;
+  filter: string;
+  agg: string;
+  viewHeaders: string[];
+  viewRows: RawCsvRow[];
 };
 
 const EXCEL_ROW_CAP = 40_000;
@@ -255,6 +270,8 @@ export function buildExportModel(input: {
   rows?: RawCsvRow[];
   dateRangeLabel: string;
   categoryLabel: string;
+  metricHint?: string;
+  analysis?: AnalysisExportSlice;
 }): ExportModel {
   const dataset = input.dataset;
   const kind: DatasetKind = dataset?.kind ?? (input.isHr ? "hr" : "generic");
@@ -284,7 +301,9 @@ export function buildExportModel(input: {
   }
 
   const fileRowCount = dataset?.rows.length ?? rows.length;
-  const metricLabel = pickMetric(headers, dataset);
+  const metricLabel =
+    (input.metricHint && headers.includes(input.metricHint) ? input.metricHint : null) ??
+    pickMetric(headers, dataset);
   const inverse = isInverseMetric(metricLabel);
   const timeField = dataset?.timeField ?? (headers.includes("month") ? "month" : null);
   const profitHeader = findHeader(headers, /\b(net\s*)?(profit|ebitda|pnl)\b/i);
@@ -292,14 +311,22 @@ export function buildExportModel(input: {
   const costHeader = findHeader(headers, /\b(cost|expense|cogs)\b/i);
 
   let series = seriesFromRows(rows, timeField, metricLabel);
-  if (series.length === 0 && input.isHr) {
-    series = aggregateByMonth(input.records).map((point) => ({
-      label: point.month,
-      value: point.headcount,
-    }));
+  if (input.analysis && input.analysis.viewRows.length > 0) {
+    series = input.analysis.viewRows.map((row) => ({
+      label: row.Category || row.label || "",
+      value: Number(row.Total ?? row.value ?? 0),
+    })).filter((point) => point.label && Number.isFinite(point.value));
   }
-  if (series.length === 0 && dataset) {
-    series = computeGenericAnalytics(rows, dataset).series;
+  if (!input.analysis) {
+    if (series.length === 0 && input.isHr) {
+      series = aggregateByMonth(input.records).map((point) => ({
+        label: point.month,
+        value: point.headcount,
+      }));
+    }
+    if (series.length === 0 && dataset) {
+      series = computeGenericAnalytics(rows, dataset).series;
+    }
   }
 
   const movements = series.slice(1).map((point, index) =>
@@ -316,7 +343,14 @@ export function buildExportModel(input: {
   let percent = 0;
   let basis = "";
 
-  if (profitHeader) {
+  if (input.analysis && series.length >= 2) {
+    const previous = series[series.length - 2];
+    const latest = series[series.length - 1];
+    const move = movement(latest.label, previous.value, latest.value);
+    amount = move.change;
+    percent = move.changePct;
+    basis = `${input.analysis.sheetName}: ${input.analysis.title}. ${latest.label} vs ${previous.label}`;
+  } else if (profitHeader) {
     amount = sumColumn(rows, profitHeader);
     const absRevenue = revenueHeader ? Math.abs(sumColumn(rows, revenueHeader)) : Math.abs(amount);
     percent = absRevenue === 0 ? 0 : (amount / absRevenue) * 100;
@@ -387,6 +421,7 @@ export function buildExportModel(input: {
     headers,
     previewRows: rows.slice(0, PREVIEW_ROWS),
     allRows: rows.slice(0, EXCEL_ROW_CAP),
+    analysis: input.analysis,
   };
 }
 

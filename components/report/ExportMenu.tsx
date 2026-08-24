@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { toolbarButtonClass } from "@/components/filters/FilterBar";
 import type { RawCsvRow } from "@/lib/csv";
-import { buildExportModel } from "@/lib/export-model";
+import { buildExportModel, type AnalysisExportSlice } from "@/lib/export-model";
 import { useFilters } from "@/lib/filters-context";
 
 type Format = "xlsx" | "pptx" | "pdf";
@@ -19,10 +19,14 @@ export function ExportMenu({
   fileName,
   headers,
   rows,
+  metricHint,
+  analysis,
 }: {
   fileName?: string;
   headers?: string[];
   rows?: RawCsvRow[];
+  metricHint?: string;
+  analysis?: AnalysisExportSlice;
 }) {
   const {
     dataset,
@@ -60,6 +64,8 @@ export function ExportMenu({
         rows,
         dateRangeLabel,
         categoryLabel: departmentLabel,
+        metricHint,
+        analysis,
       });
       const files = await import("@/lib/export-files");
       if (format === "xlsx") await files.downloadExcelReport(model);

@@ -197,7 +197,11 @@ export function buildViz(
     }
     totals.push({ label, total, series });
   }
-  totals.sort((a, b) => b.total - a.total);
+  totals.sort((a, b) =>
+    spec.visual === "line" || spec.visual === "area"
+      ? a.label.localeCompare(b.label)
+      : b.total - a.total,
+  );
 
   const top = totals.slice(0, spec.visual === "pie" || spec.visual === "donut" ? 8 : 18);
   const rest = totals.slice(top.length);
@@ -231,6 +235,29 @@ export function buildViz(
     rowCount: filtered.length,
     title: `${agg} of ${displayMeasure} by ${category}${colorBy ? ` · color ${colorBy}` : ""}`,
   };
+}
+
+export function applySheetFilter(rows: RawCsvRow[], spec: SheetSpec): RawCsvRow[] {
+  if (spec.filterField && spec.filterValue !== "All") {
+    return rows.filter((row) => (row[spec.filterField ?? ""] ?? "") === spec.filterValue);
+  }
+  return rows;
+}
+
+export function vizToExportRows(viz: VizResult): { headers: string[]; rows: RawCsvRow[] } {
+  const headers = ["Category", ...viz.seriesKeys.filter((key) => key !== "value"), "Total"];
+  const uniqueHeaders = [...new Set(headers)];
+  const rows = viz.points.map((point) => {
+    const row: RawCsvRow = {
+      Category: point.label,
+      Total: String(point.value),
+    };
+    for (const key of viz.seriesKeys) {
+      row[key] = String(point[key] ?? 0);
+    }
+    return row;
+  });
+  return { headers: uniqueHeaders, rows };
 }
 
 export function looksLikeLocation(name: string): boolean {
