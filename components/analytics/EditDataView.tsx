@@ -13,6 +13,7 @@ import {
 import { inferRoles } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
 import {
+  inspectGenericRows,
   inspectRows,
   mappedRowsFromRaw,
   rowsToRecords,
@@ -54,6 +55,13 @@ export function EditDataView() {
   async function save() {
     setSaveError(null);
     if (!isHrDashboard && dataset) {
+      const issues = inspectGenericRows(rows, dataset.timeField);
+      if (issues.length > 0) {
+        setSaveError(
+          `${issues.length} cell${issues.length === 1 ? "" : "s"} still fail validation. Fix the highlighted cells before saving.`,
+        );
+        return;
+      }
       const roles = inferRoles(headers, rows);
       setBusy(true);
       const ok = await replaceDataset({
@@ -85,6 +93,12 @@ export function EditDataView() {
       setSaveError(converted.errors[0] ?? "Some rows still fail validation.");
       return;
     }
+    if (converted.records.length !== mapped.length) {
+      setSaveError(
+        `${mapped.length - converted.records.length} rows were skipped due to errors. Fix the highlighted cells before saving.`,
+      );
+      return;
+    }
     setBusy(true);
     const ok = await replaceSourceRecords(converted.records);
     setBusy(false);
@@ -106,6 +120,7 @@ export function EditDataView() {
       rows={rows}
       mapping={isHrDashboard ? mappingFromExactHeaders(headers) : undefined}
       validateHr={isHrDashboard}
+      timeField={isHrDashboard ? null : dataset?.timeField ?? null}
       busy={busy}
       saveError={saveError}
       saveLabel="Save"

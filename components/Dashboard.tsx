@@ -77,7 +77,11 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
           </h1>
           <p className="mt-1 text-sm text-muted">
             {dataset && !isHrDashboard
-              ? `${dataset.filename} · ${genericRows.length.toLocaleString("en-US")} rows · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
+              ? `${dataset.filename} · ${dataset.rows.length.toLocaleString("en-US")} source rows${
+                  genericRows.length !== dataset.rows.length
+                    ? ` · ${genericRows.length.toLocaleString("en-US")} in current filters`
+                    : ""
+                } · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
               : `HQ ${company.company.hq} · Monitor, diagnose, and forecast any business dataset`}
           </p>
         </header>

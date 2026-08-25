@@ -21,11 +21,48 @@ export type ColumnMapping = Record<RequiredHeader, string>;
 
 export type RawCsvRow = Record<string, string>;
 
+export type DroppedSourceRow = {
+  rowNumber: number;
+  reason: string;
+};
+
 export type RawCsvParseResult = {
   headers: string[];
   rows: RawCsvRow[];
   errors: string[];
+  sourceDataRows: number;
+  droppedRows: DroppedSourceRow[];
 };
+
+export function parseIntegrity(
+  result: Omit<RawCsvParseResult, "sourceDataRows" | "droppedRows"> &
+    Partial<Pick<RawCsvParseResult, "sourceDataRows" | "droppedRows">>,
+): RawCsvParseResult {
+  const droppedRows = result.droppedRows ?? [];
+  return {
+    headers: result.headers,
+    rows: result.rows,
+    errors: result.errors,
+    droppedRows,
+    sourceDataRows: result.sourceDataRows ?? result.rows.length + droppedRows.length,
+  };
+}
+
+export function skippedRowsMessage(
+  sourceDataRows: number,
+  processedRows: number,
+  droppedRows: DroppedSourceRow[] = [],
+): string | null {
+  if (sourceDataRows === processedRows && droppedRows.length === 0) return null;
+  const skipped = Math.max(0, sourceDataRows - processedRows);
+  const details = droppedRows
+    .slice(0, 12)
+    .map((row) => `row ${row.rowNumber} (${row.reason})`)
+    .join("; ");
+  return `${skipped} row${skipped === 1 ? "" : "s"} ${
+    skipped === 1 ? "was" : "were"
+  } skipped due to errors${details ? `: ${details}` : ""}.`;
+}
 
 export type CsvParseResult = {
   records: HrRecord[];
@@ -350,27 +387,34 @@ export function parseRawCsv(text: string): RawCsvParseResult {
     .filter((header) => header.length > 0);
 
   if (headers.length === 0) {
-    return {
+    return parseIntegrity({
       headers: [],
       rows: [],
       errors: ["CSV needs a header row and at least one data row."],
-    };
+    });
   }
 
-  const rows: RawCsvRow[] = parsed.data.map((row) => {
+  const rows: RawCsvRow[] = [];
+  const droppedRows: DroppedSourceRow[] = [];
+  parsed.data.forEach((row) => {
     const next: RawCsvRow = {};
+    let empty = true;
     for (const header of headers) {
-      next[header] = asCellString(row[header]);
+      const value = asCellString(row[header]);
+      next[header] = value;
+      if (value !== "") empty = false;
     }
-    return next;
+    if (empty) return;
+    rows.push(next);
   });
 
   if (rows.length === 0) {
-    return {
+    return parseIntegrity({
       headers,
       rows: [],
       errors: ["CSV needs a header row and at least one data row."],
-    };
+      droppedRows,
+    });
   }
 
   const parseErrors = parsed.errors
@@ -378,7 +422,13 @@ export function parseRawCsv(text: string): RawCsvParseResult {
     .slice(0, 8)
     .map((error) => error.message);
 
-  return { headers, rows, errors: parseErrors };
+  return parseIntegrity({
+    headers,
+    rows,
+    errors: parseErrors,
+    droppedRows,
+    sourceDataRows: rows.length + droppedRows.length,
+  });
 }
 
 export function applyColumnMapping(

@@ -3,6 +3,7 @@ import {
   type RawCsvRow,
   type RequiredHeader,
 } from "@/lib/csv";
+import { isParseableTimeValue } from "@/lib/dataset";
 import type { HrRecord } from "@/lib/types";
 
 export type MappedRow = {
@@ -12,14 +13,14 @@ export type MappedRow = {
 
 export type CellIssue = {
   rowId: string;
-  field: RequiredHeader;
+  field: string;
   value: string;
   rule: string;
   message: string;
 };
 
 export type IssueGroup = {
-  field: RequiredHeader;
+  field: string;
   rule: string;
   description: string;
   values: string[];
@@ -140,6 +141,37 @@ export function checkField(
   return null;
 }
 
+export function checkTimeValue(
+  value: string,
+): { rule: string; message: string } | null {
+  if (value.trim() === "") return null;
+  if (!isParseableTimeValue(value)) {
+    return { rule: "parseable_date", message: "is not a real date" };
+  }
+  return null;
+}
+
+export function inspectGenericRows(
+  rows: RawCsvRow[],
+  timeField: string | null,
+): CellIssue[] {
+  if (!timeField) return [];
+  const issues: CellIssue[] = [];
+  rows.forEach((row, index) => {
+    const value = row[timeField] ?? "";
+    const failed = checkTimeValue(value);
+    if (!failed) return;
+    issues.push({
+      rowId: `r${index}`,
+      field: timeField,
+      value,
+      rule: failed.rule,
+      message: failed.message,
+    });
+  });
+  return issues;
+}
+
 export function inspectRows(rows: MappedRow[]): CellIssue[] {
   const issues: CellIssue[] = [];
 
@@ -220,7 +252,7 @@ export function groupIssues(issues: CellIssue[]): IssueGroup[] {
       if (!existing.values.includes(issue.value)) existing.values.push(issue.value);
       continue;
     }
-    const fieldRule = FIELD_RULES[issue.field];
+    const fieldRule = FIELD_RULES[issue.field as RequiredHeader];
     groups.set(key, {
       field: issue.field,
       rule: issue.rule,
@@ -229,7 +261,9 @@ export function groupIssues(issues: CellIssue[]): IssueGroup[] {
           ? "referral_pct + job_board_pct + agency_pct must equal 100."
           : issue.rule === "unique_month_department"
             ? "Each month + department pair must be unique."
-            : fieldRule.description,
+            : issue.rule === "parseable_date"
+              ? "Must be a real calendar date, for example 2024-09-15 or 9/15/2024."
+            : fieldRule?.description ?? issue.message,
       values: [issue.value],
     });
   }
@@ -239,7 +273,7 @@ export function groupIssues(issues: CellIssue[]): IssueGroup[] {
 export function issueForCell(
   issues: CellIssue[],
   rowId: string,
-  field: RequiredHeader,
+  field: string,
 ): CellIssue | undefined {
   return issues.find((issue) => issue.rowId === rowId && issue.field === field);
 }
@@ -289,6 +323,20 @@ export function rowsToRecords(rows: MappedRow[]): {
     records: rows.map((row) => rowToRecord(row) as HrRecord),
     errors: [],
   };
+}
+
+export function applyRawFieldFixes(
+  rows: RawCsvRow[],
+  field: string,
+  fixes: Array<{ original: string; suggested: string }>,
+): RawCsvRow[] {
+  const lookup = new Map(fixes.map((fix) => [fix.original, fix.suggested]));
+  return rows.map((row) => {
+    const current = row[field];
+    const next = lookup.get(current);
+    if (next == null) return row;
+    return { ...row, [field]: next };
+  });
 }
 
 export function applyValueFixes(

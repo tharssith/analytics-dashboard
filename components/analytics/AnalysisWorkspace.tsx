@@ -121,12 +121,23 @@ export function AnalysisWorkspace() {
     dataset,
     isHrDashboard,
     records,
+    sourceRecords,
     genericRows,
     filters,
   } = useFilters();
   const table = useMemo(
     () => workspaceTable(dataset, isHrDashboard, records, genericRows),
     [dataset, isHrDashboard, records, genericRows],
+  );
+  const dataTable = useMemo(
+    () =>
+      workspaceTable(
+        dataset,
+        isHrDashboard,
+        sourceRecords,
+        dataset && !isHrDashboard ? dataset.rows : [],
+      ),
+    [dataset, isHrDashboard, sourceRecords],
   );
   const fields = useMemo(
     () => classifyFields(table.headers, table.rows, dataset),
@@ -216,7 +227,7 @@ export function AnalysisWorkspace() {
 
   const filterValues = spec.filterField ? uniqueFieldValues(table.rows, spec.filterField) : [];
   const pageSize = 80;
-  const pageCount = Math.max(1, Math.ceil(table.rows.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil(dataTable.rows.length / pageSize));
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[#f3f2f1] text-[13px]">
@@ -538,14 +549,19 @@ export function AnalysisWorkspace() {
         ) : view === "data" ? (
           <div className="flex min-w-0 flex-1 flex-col bg-white">
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <p className="text-sm font-semibold">Data view · {table.filename}</p>
-              <p className="text-xs text-muted">{table.rows.length.toLocaleString("en-US")} rows</p>
+              <p className="text-sm font-semibold">Data view · {dataTable.filename}</p>
+              <p className="text-xs text-muted">
+                {dataTable.rows.length.toLocaleString("en-US")} source rows
+                {table.rows.length !== dataTable.rows.length
+                  ? ` · ${table.rows.length.toLocaleString("en-US")} in current filters`
+                  : ""}
+              </p>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-max min-w-full border-collapse text-left text-xs">
                 <thead className="sticky top-0 bg-[#eee]">
                   <tr>
-                    {table.headers.map((header) => (
+                    {dataTable.headers.map((header) => (
                       <th key={header} className="border border-border px-2 py-1 font-semibold">
                         {header}
                       </th>
@@ -553,9 +569,9 @@ export function AnalysisWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {table.rows.slice(page * pageSize, page * pageSize + pageSize).map((row, index) => (
+                  {dataTable.rows.slice(page * pageSize, page * pageSize + pageSize).map((row, index) => (
                     <tr key={`${page}-${index}`}>
-                      {table.headers.map((header) => (
+                      {dataTable.headers.map((header) => (
                         <td key={header} className="border border-border px-2 py-1">
                           {row[header]}
                         </td>

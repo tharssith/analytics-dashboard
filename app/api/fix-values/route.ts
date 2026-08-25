@@ -66,24 +66,29 @@ export async function POST(request: Request) {
 
   const groups = (body.groups as FixGroupIn[])
     .map((group) => {
-      const field =
-        typeof group.field === "string" &&
-        (REQUIRED_HEADERS as readonly string[]).includes(group.field)
-          ? (group.field as RequiredHeader)
-          : null;
+      const field = typeof group.field === "string" && group.field.trim() ? group.field : null;
       if (!field) return null;
       const values = asStringArray(group.values);
       if (values.length === 0) return null;
+      const known = (REQUIRED_HEADERS as readonly string[]).includes(field)
+        ? (field as RequiredHeader)
+        : null;
       const rule =
-        typeof group.rule === "string" ? group.rule : FIELD_RULES[field].rule;
+        typeof group.rule === "string"
+          ? group.rule
+          : known
+            ? FIELD_RULES[known].rule
+            : "parseable_date";
       const description =
         typeof group.description === "string"
           ? group.description
-          : FIELD_RULES[field].description;
+          : known
+            ? FIELD_RULES[known].description
+            : "Must be a real calendar date, for example 2024-09-15 or 9/15/2024.";
       return { field, rule, description, values };
     })
     .filter((group): group is NonNullable<typeof group> => group != null)
-    .slice(0, REQUIRED_HEADERS.length);
+    .slice(0, 12);
 
   if (groups.length === 0) {
     return Response.json({ groups: [] });

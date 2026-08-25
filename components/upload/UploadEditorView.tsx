@@ -8,6 +8,7 @@ import { toolbarButtonClass } from "@/components/filters/FilterBar";
 import { Card } from "@/components/ui/Card";
 import {
   applyColumnMapping,
+  skippedRowsMessage,
   type RawCsvRow,
 } from "@/lib/csv";
 import { uniqueDepartments } from "@/lib/data";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/upload-draft";
 import {
   failingRowIds,
+  inspectGenericRows,
   inspectRows,
   mappedRowsFromRaw,
   rowsToRecords,
@@ -27,7 +29,7 @@ import {
 
 export function UploadEditorView() {
   const router = useRouter();
-  const { replaceSourceRecords } = useFilters();
+  const { replaceSourceRecords, replaceDataset } = useFilters();
   const [draft, setDraft] = useState<UploadDraft | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -40,9 +42,12 @@ export function UploadEditorView() {
   function updateRows(next: RawCsvRow[]) {
     setDraft((current) => {
       if (!current) return current;
-      const mapped = mappedRowsFromRaw(applyColumnMapping(next, current.mapping));
+      const generic = current.kind === "generic";
+      const issues = generic
+        ? inspectGenericRows(next, current.profile?.timeField ?? null)
+        : inspectRows(mappedRowsFromRaw(applyColumnMapping(next, current.mapping)));
       const flagged = new Set(current.flaggedIds);
-      for (const id of failingRowIds(inspectRows(mapped))) flagged.add(id);
+      for (const id of failingRowIds(issues)) flagged.add(id);
       const updated = {
         ...current,
         rawRows: next,
@@ -65,6 +70,50 @@ export function UploadEditorView() {
 
   async function save() {
     if (!draft) return;
+    const sourceCount = draft.sourceDataRows ?? draft.rawRows.length;
+    const skipMessage = skippedRowsMessage(sourceCount, draft.rawRows.length);
+    if (skipMessage) {
+      setSaveError(skipMessage);
+      return;
+    }
+    if (draft.kind === "generic") {
+      if (!draft.profile) {
+        setSaveError("This file is missing dataset type details. Upload it again.");
+        return;
+      }
+      const issues = inspectGenericRows(draft.rawRows, draft.profile.timeField);
+      if (issues.length > 0) {
+        const failing = failingRowIds(issues);
+        setDraft((current) => {
+          if (!current) return current;
+          const flagged = new Set(current.flaggedIds);
+          for (const id of failing) flagged.add(id);
+          const updated = { ...current, flaggedIds: [...flagged] };
+          writeUploadDraft(updated);
+          return updated;
+        });
+        setSaveError(
+          `${failing.size} row${failing.size === 1 ? "" : "s"} still fail validation. Fix the highlighted cells before saving.`,
+        );
+        return;
+      }
+      setBusy(true);
+      const ok = await replaceDataset({
+        ...draft.profile,
+        filename: draft.fileName,
+        rows: draft.rawRows,
+      });
+      setBusy(false);
+      if (!ok) {
+        setSaveError("Could not save this dataset.");
+        return;
+      }
+      clearUploadDraft();
+      setSavedLabel(
+        `Loaded ${draft.rawRows.length} of ${sourceCount} source rows from ${draft.fileName}.`,
+      );
+      return;
+    }
     const mapped = mappedRowsFromRaw(applyColumnMapping(draft.rawRows, draft.mapping));
     const issues = inspectRows(mapped);
     if (issues.length > 0) {
@@ -87,6 +136,13 @@ export function UploadEditorView() {
       setSaveError(converted.errors[0] ?? "Some rows still fail validation.");
       return;
     }
+    if (converted.records.length !== mapped.length) {
+      setSaveError(
+        skippedRowsMessage(mapped.length, converted.records.length) ??
+          "Some rows were dropped during conversion.",
+      );
+      return;
+    }
     setBusy(true);
     const ok = await replaceSourceRecords(converted.records);
     setBusy(false);
@@ -97,7 +153,7 @@ export function UploadEditorView() {
     const depts = uniqueDepartments(converted.records);
     clearUploadDraft();
     setSavedLabel(
-      `Loaded ${converted.records.length} records for ${depts.length} department${
+      `Loaded ${converted.records.length} of ${sourceCount} source rows for ${depts.length} department${
         depts.length === 1 ? "" : "s"
       }.`,
     );
@@ -140,6 +196,8 @@ export function UploadEditorView() {
       rows={draft.rawRows}
       mapping={draft.mapping}
       flaggedIds={draft.flaggedIds}
+      validateHr={draft.kind !== "generic"}
+      timeField={draft.kind === "generic" ? draft.profile?.timeField ?? null : null}
       busy={busy}
       saveError={saveError}
       onRowsChange={updateRows}

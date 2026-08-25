@@ -1,4 +1,5 @@
 import type { ColumnMapping, RawCsvRow } from "@/lib/csv";
+import type { DatasetProfile } from "@/lib/dataset";
 
 export const UPLOAD_DRAFT_KEY = "northstar-upload-draft";
 
@@ -10,6 +11,9 @@ export type UploadDraft = {
   mode: "ai" | "manual";
   audit: string[];
   flaggedIds: string[];
+  kind?: "hr" | "generic";
+  profile?: DatasetProfile | null;
+  sourceDataRows?: number;
 };
 
 function canUseStorage(): boolean {

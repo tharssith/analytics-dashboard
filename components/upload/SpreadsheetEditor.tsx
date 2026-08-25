@@ -51,7 +51,9 @@ import {
 } from "@/lib/csv";
 import {
   checkField,
+  checkTimeValue,
   failingRowIds,
+  inspectGenericRows,
   inspectRows,
   mappedRowsFromRaw,
   type CellIssue,
@@ -246,6 +248,7 @@ export function SpreadsheetEditor({
   busy,
   saveError,
   validateHr,
+  timeField = null,
   saveLabel = "Save and Continue",
 }: {
   fileName: string;
@@ -260,6 +263,7 @@ export function SpreadsheetEditor({
   busy?: boolean;
   saveError?: string | null;
   validateHr?: boolean;
+  timeField?: string | null;
   saveLabel?: string;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -298,8 +302,8 @@ export function SpreadsheetEditor({
     [hrChecks, rows, mapping],
   );
   const issues = useMemo(
-    () => (hrChecks ? inspectRows(mappedRows) : []),
-    [hrChecks, mappedRows],
+    () => (hrChecks ? inspectRows(mappedRows) : inspectGenericRows(rows, timeField)),
+    [hrChecks, mappedRows, rows, timeField],
   );
   const issueIndex = useMemo(() => {
     const map = new Map<string, CellIssue>();
@@ -357,7 +361,7 @@ export function SpreadsheetEditor({
   const activeField = reverseMapping.get(activeHeader);
   const activeIssue = activeField
     ? issueIndex.get(`r${selected.row}:${activeField}`)
-    : undefined;
+    : issueIndex.get(`r${selected.row}:${activeHeader}`);
 
   const pushHistory = useCallback(() => {
     setHistory((current) => [
@@ -1017,11 +1021,11 @@ export function SpreadsheetEditor({
       </div>
 
       {saveError ? <p className="px-4 py-2 text-sm text-rag-red">{saveError}</p> : null}
-      {hrChecks && activeIssue ? (
+      {activeIssue ? (
         <p className="px-4 py-1 text-xs text-rag-red">
           {activeIssue.field} {activeIssue.message}
         </p>
-      ) : hrChecks && issues.length > 0 ? (
+      ) : issues.length > 0 ? (
         <p className="px-4 py-1 text-xs text-rag-red">
           {stillFailing.size} row{stillFailing.size === 1 ? "" : "s"} still fail validation. Fix the
           highlighted cells before saving.
@@ -1090,11 +1094,17 @@ export function SpreadsheetEditor({
                   </td>
                   {headers.map((header, col) => {
                     const field = reverseMapping.get(header);
-                    const issue = field ? issueIndex.get(`r${row}:${field}`) : undefined;
-                    const live =
-                      hrChecks && editing && selected.row === row && selected.col === col && field
-                        ? checkField(field, draft)
-                        : issue;
+                    const issue =
+                      (field ? issueIndex.get(`r${row}:${field}`) : undefined) ??
+                      issueIndex.get(`r${row}:${header}`);
+                    const live = (() => {
+                      if (!(editing && selected.row === row && selected.col === col)) return issue;
+                      if (hrChecks && field) return checkField(field, draft) ?? issue;
+                      if (!hrChecks && timeField && header === timeField) {
+                        return checkTimeValue(draft) ?? issue;
+                      }
+                      return issue;
+                    })();
                     const value = rows[row]?.[header] ?? "";
                     const style = styles[styleKey(row, header)];
                     const selectedCell = inSelection(selection, row, col);

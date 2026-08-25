@@ -16,9 +16,11 @@ import {
   isMappingComplete,
   mappingFillCount,
   sanitizeColumnMapping,
+  skippedRowsMessage,
   suggestColumnMapping,
   writeMappedCellsToRaw,
   type ColumnMapping,
+  type DroppedSourceRow,
   type RawCsvRow,
   type RequiredHeader,
 } from "@/lib/csv";
@@ -39,9 +41,11 @@ import {
   type UploadStage,
 } from "@/lib/upload-flow";
 import {
+  applyRawFieldFixes,
   applyValueFixes,
   failingRowIds,
   groupIssues,
+  inspectGenericRows,
   inspectRows,
   mappedRowsFromRaw,
   rowsToRecords,
@@ -66,6 +70,8 @@ export function UploadDataView() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<RawCsvRow[]>([]);
+  const [sourceDataRows, setSourceDataRows] = useState(0);
+  const [droppedRows, setDroppedRows] = useState<DroppedSourceRow[]>([]);
   const [mode, setMode] = useState<Mode | null>(null);
   const [stage, setStage] = useState<Stage>("choice");
   const [mapping, setMapping] = useState<ColumnMapping>(emptyMapping);
@@ -110,6 +116,8 @@ export function UploadDataView() {
     setParseError(null);
     setHeaders([]);
     setRawRows([]);
+    setSourceDataRows(0);
+    setDroppedRows([]);
     try {
       const { parseRawUpload } = await import("@/lib/spreadsheet");
       const raw = await parseRawUpload(file);
@@ -117,10 +125,20 @@ export function UploadDataView() {
         setParseError(raw.errors[0] ?? "Could not parse that file.");
         return;
       }
+      const skipMessage = skippedRowsMessage(
+        raw.sourceDataRows,
+        raw.rows.length,
+        raw.droppedRows,
+      );
       setHeaders(raw.headers);
       setRawRows(raw.rows);
+      setSourceDataRows(raw.sourceDataRows);
+      setDroppedRows(raw.droppedRows);
       setProfile(buildLocalProfile(file.name, raw.headers, raw.rows));
       setStage("choice");
+      if (skipMessage) {
+        setParseError(skipMessage);
+      }
     } catch {
       setParseError("Could not read that file. Use a CSV or Excel (.xlsx) spreadsheet.");
     }
@@ -264,14 +282,39 @@ export function UploadDataView() {
 
   async function saveGenericDataset() {
     if (!profile || !fileName) return;
+    const skipMessage = skippedRowsMessage(sourceDataRows, rawRows.length, droppedRows);
+    if (skipMessage) {
+      setSaveError(skipMessage);
+      return;
+    }
+    const issues = inspectGenericRows(rawRows, profile.timeField);
+    if (issues.length > 0) {
+      const ids = failingRowIds(issues);
+      setFlaggedIds(ids);
+      setSaveError(remainingIssuesMessage(issues));
+      const nextAudit = [
+        `Parsed ${rawRows.length} of ${sourceDataRows} source rows`,
+        `${ids.size} row${ids.size === 1 ? "" : "s"} flagged for invalid ${profile.timeField ?? "date"} values`,
+      ];
+      setAudit(nextAudit);
+      if (mode === "ai") {
+        setStage("ai-fixes");
+        await requestAiFixes(issues);
+        return;
+      }
+      goToEditor(nextAudit, ids, [], rawRows, "generic");
+      return;
+    }
     setBusy(true);
+    setSaveError(null);
     const ok = await replaceDataset({ ...profile, filename: fileName, rows: rawRows });
     setBusy(false);
     if (!ok) {
       setSaveError("Could not save this dataset.");
       return;
     }
-    router.push("/dashboard");
+    setSavedLabel(`Loaded ${rawRows.length} rows from ${fileName}.`);
+    setStage("saved");
   }
 
   function goToEditor(
@@ -279,17 +322,63 @@ export function UploadDataView() {
     ids: Set<string>,
     mapped: MappedRow[],
     raw = rawRows,
+    kind: "hr" | "generic" = "hr",
   ) {
     writeUploadDraft({
       fileName: fileName ?? "File",
       headers,
-      rawRows: writeMappedCellsToRaw(raw, mapping, mapped),
+      rawRows:
+        kind === "generic" ? raw : writeMappedCellsToRaw(raw, mapping, mapped),
       mapping,
       mode: mode ?? "manual",
       audit: nextAudit,
       flaggedIds: [...ids],
+      kind,
+      profile: kind === "generic" ? profile : undefined,
+      sourceDataRows,
     });
     router.push("/upload/edit");
+  }
+
+  async function requestAiFixes(issues: CellIssue[]) {
+    setAiLoading(true);
+    try {
+      const response = await fetch("/api/fix-values", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groups: groupIssues(issues) }),
+      });
+      const payload = (await response.json()) as {
+        groups?: Array<{
+          field?: string;
+          fixes?: Array<{ original?: string; suggested?: string | null }>;
+        }>;
+      };
+      const suggestions: SuggestedFix[] = [];
+      let skipped = 0;
+      for (const group of payload.groups ?? []) {
+        if (!group.field) continue;
+        for (const fix of group.fixes ?? []) {
+          if (typeof fix.original !== "string") continue;
+          if (typeof fix.suggested === "string" && fix.suggested.length > 0) {
+            suggestions.push({
+              field: group.field,
+              original: fix.original,
+              suggested: fix.suggested,
+            });
+          } else {
+            skipped += 1;
+          }
+        }
+      }
+      setAiSuggestions(suggestions);
+      setAiSkipped(skipped);
+    } catch {
+      setAiSuggestions([]);
+      setAiSkipped(issues.length);
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   async function continueMapping() {
@@ -318,54 +407,45 @@ export function UploadDataView() {
     setFlaggedIds(failingRowIds(issues));
     setAudit(nextAudit);
     setStage("ai-fixes");
-    setAiLoading(true);
-    try {
-      const response = await fetch("/api/fix-values", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groups: groupIssues(issues) }),
-      });
-      const payload = (await response.json()) as {
-        groups?: Array<{
-          field?: RequiredHeader;
-          fixes?: Array<{ original?: string; suggested?: string | null }>;
-        }>;
-      };
-      const suggestions: SuggestedFix[] = [];
-      let skipped = 0;
-      for (const group of payload.groups ?? []) {
-        if (!group.field) continue;
-        for (const fix of group.fixes ?? []) {
-          if (typeof fix.original !== "string") continue;
-          if (typeof fix.suggested === "string" && fix.suggested.length > 0) {
-            suggestions.push({
-              field: group.field,
-              original: fix.original,
-              suggested: fix.suggested,
-            });
-          } else {
-            skipped += 1;
-          }
-        }
-      }
-      setAiSuggestions(suggestions);
-      setAiSkipped(skipped);
-    } catch {
-      setAiSuggestions([]);
-      setAiSkipped(inspectRows(rows).length);
-    } finally {
-      setAiLoading(false);
-    }
+    await requestAiFixes(issues);
   }
 
   function applyAiFixes() {
+    const generic = Boolean(profile && profile.kind !== "hr");
+    if (generic) {
+      let nextRows = rawRows;
+      const counts = new Map<string, number>();
+      for (const field of new Set(aiSuggestions.map((fix) => fix.field))) {
+        const fixes = aiSuggestions.filter((fix) => fix.field === field);
+        const before = inspectGenericRows(nextRows, field).length;
+        nextRows = applyRawFieldFixes(nextRows, field, fixes);
+        const after = inspectGenericRows(nextRows, field).length;
+        const fixed = Math.max(0, before - after);
+        if (fixed > 0) counts.set(field, fixed);
+      }
+      setRawRows(nextRows);
+      const remaining = inspectGenericRows(nextRows, profile?.timeField ?? null);
+      setFlaggedIds(failingRowIds(remaining));
+      const fixNotes = [...counts.entries()].map(
+        ([field, count]) => `fixed ${count} ${field} value${count === 1 ? "" : "s"}`,
+      );
+      const nextAudit =
+        fixNotes.length > 0 ? [...audit, `AI: ${fixNotes.join(", ")}`] : audit;
+      setAudit(nextAudit);
+      if (remaining.length === 0) {
+        setStage("roles");
+        return;
+      }
+      goToEditor(nextAudit, failingRowIds(remaining), [], nextRows, "generic");
+      return;
+    }
     let nextRows = mappedRows;
-    const counts = new Map<RequiredHeader, number>();
+    const counts = new Map<string, number>();
     for (const field of new Set(aiSuggestions.map((fix) => fix.field))) {
       const fixes = aiSuggestions.filter((fix) => fix.field === field);
       const before = inspectRows(nextRows).filter((issue) => issue.field === field)
         .length;
-      nextRows = applyValueFixes(nextRows, field, fixes);
+      nextRows = applyValueFixes(nextRows, field as RequiredHeader, fixes);
       const after = inspectRows(nextRows).filter((issue) => issue.field === field)
         .length;
       const fixed = Math.max(0, before - after);
@@ -394,12 +474,23 @@ export function UploadDataView() {
   }
 
   function openManualFix() {
+    if (profile && profile.kind !== "hr") {
+      const ids = failingRowIds(inspectGenericRows(rawRows, profile.timeField));
+      goToEditor(audit, ids, [], rawRows, "generic");
+      return;
+    }
     const ids = failingRowIds(inspectRows(mappedRows));
     goToEditor(audit, ids, mappedRows);
   }
 
   async function persistRows(rows: MappedRow[]) {
     setMappedRows(rows);
+    const skipMessage = skippedRowsMessage(sourceDataRows, rows.length, droppedRows);
+    if (skipMessage) {
+      setSaveError(skipMessage);
+      goToEditor(audit, failingRowIds(inspectRows(rows)), rows);
+      return false;
+    }
     const issues = inspectRows(rows);
     if (issues.length > 0) {
       const failing = failingRowIds(issues);
@@ -447,8 +538,16 @@ export function UploadDataView() {
       ]);
     }
     const depts = uniqueDepartments(converted.records);
+    if (converted.records.length !== rows.length) {
+      setSaveError(
+        skippedRowsMessage(rows.length, converted.records.length) ??
+          "Some rows were dropped during conversion.",
+      );
+      goToEditor(audit, failingRowIds(inspectRows(rows)), rows);
+      return false;
+    }
     setSavedLabel(
-      `Loaded ${converted.records.length} records for ${depts.length} department${
+      `Loaded ${converted.records.length} of ${sourceDataRows} source rows for ${depts.length} department${
         depts.length === 1 ? "" : "s"
       }.`,
     );
@@ -495,7 +594,9 @@ export function UploadDataView() {
         {fileName ? (
           <p className="mt-3 text-sm text-foreground">
             {fileName}
-            {rawRows.length > 0 ? ` · ${rawRows.length} rows` : ""}
+            {rawRows.length > 0
+              ? ` · parsed ${rawRows.length.toLocaleString("en-US")} of ${sourceDataRows.toLocaleString("en-US")} source rows`
+              : ""}
           </p>
         ) : null}
         {parseError ? <p className="mt-3 text-sm text-rag-red">{parseError}</p> : null}
@@ -542,6 +643,7 @@ export function UploadDataView() {
 
       {stage === "roles" && profile && profile.kind !== "hr" ? (
         <div className="mb-5 max-w-xl">
+          {saveError ? <p className="mb-3 text-sm text-rag-red">{saveError}</p> : null}
           <button
             type="button"
             disabled={busy || typeLoading}

@@ -4,11 +4,13 @@ import {
   applyColumnMapping,
   parseRawCsv,
   sanitizeColumnMapping,
+  skippedRowsMessage,
   suggestColumnMapping,
   validateMappedRows,
 } from "../lib/csv";
 import { parseRawXlsx } from "../lib/spreadsheet";
-import { buildLocalProfile } from "../lib/dataset";
+import { buildLocalProfile, filterGenericRows, toMonthKey } from "../lib/dataset";
+import { inspectGenericRows, inspectRows, mappedRowsFromRaw } from "../lib/upload-validate";
 import { shouldShowChoice, stageAfterChoice } from "../lib/upload-flow";
 
 const csv = `Period,Dept,Emp Count,Target HC,Hires,Exits,Days to Hire,Referral %,Job Board %,Agency %
@@ -229,4 +231,46 @@ const salesProfile = buildLocalProfile("Power Stations.xlsx", salesRaw.headers, 
 assert.equal(salesProfile.kind === "hr", false);
 assert.equal(stageAfterChoice(salesProfile.kind), "roles");
 console.log("Northstar HR aliases still map required fields; general files skip HR mapping");
+
+const e1Rows = Array.from({ length: 99 }, (_, index) => {
+  const id = index + 1;
+  const date = id === 12 ? "098765" : `2024-09-${String((id % 28) + 1).padStart(2, "0")}`;
+  return `${id},${date},East,${10 + id}`;
+});
+const e1Csv = ["OrderID,Date,Region,Sales", ...e1Rows].join("\n");
+const e1 = parseRawCsv(e1Csv);
+assert.equal(e1.rows.length, 99);
+assert.equal(e1.sourceDataRows, 99);
+assert.equal(e1.droppedRows.length, 0);
+assert.equal(skippedRowsMessage(e1.sourceDataRows, e1.rows.length, e1.droppedRows), null);
+assert.equal(e1.rows[11]?.OrderID, "12");
+assert.equal(e1.rows[11]?.Date, "098765");
+assert.equal(toMonthKey("098765"), null);
+assert.equal(toMonthKey("2024-09-15"), "2024-09");
+const e1Profile = buildLocalProfile("E1 BaseData.csv", e1.headers, e1.rows);
+assert.equal(e1Profile.timeField, "Date");
+const e1Issues = inspectGenericRows(e1.rows, e1Profile.timeField);
+assert.equal(e1Issues.length, 1);
+assert.equal(e1Issues[0]?.rowId, "r11");
+assert.equal(e1Issues[0]?.value, "098765");
+const e1Filtered = filterGenericRows(e1.rows, e1Profile, "2024-09", "2024-09", "All");
+assert.equal(e1Filtered.length, 99);
+assert.equal(e1Filtered[11]?.OrderID, "12");
+console.log("E1 BaseData keeps all 99 rows and flags OrderID 12 Date=098765");
+
+const hrBad = parseRawCsv(`month,department,headcount,target_headcount,new_hires,attrition_count,time_to_hire_days,referral_pct,job_board_pct,agency_pct
+2024-11,Sales,47,51,3,2,33,40,35,25
+not-a-month,Engineering,172,178,4,2,41,26,34,40
+2024-11,Finance,20,22,1,0,18,50,40,10
+`);
+assert.equal(hrBad.rows.length, 3);
+assert.equal(hrBad.sourceDataRows, 3);
+const hrMapped = mappedRowsFromRaw(hrBad.rows);
+const hrIssues = inspectRows(hrMapped);
+assert.ok(hrIssues.some((issue) => issue.rowId === "r1" && issue.field === "month"));
+const hrConverted = validateMappedRows(hrBad.rows);
+assert.equal(hrConverted.records.length, 0);
+assert.ok(hrConverted.errors.length > 0);
+assert.equal(hrBad.rows.length, 3);
+console.log("HR upload flags a bad month instead of dropping that row from the file");
 

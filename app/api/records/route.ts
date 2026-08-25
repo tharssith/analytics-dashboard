@@ -59,13 +59,22 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "replace") {
-    const records = Array.isArray(body.records)
-      ? body.records.filter(isHrRecord)
-      : [];
-    if (records.length === 0) {
+    const records = Array.isArray(body.records) ? body.records : null;
+    if (!records) {
       return NextResponse.json({ error: "No valid rows to upload." }, { status: 400 });
     }
-    const result = await replaceHrRecords(records);
+    const invalid = records.flatMap((item, index) =>
+      isHrRecord(item) ? [] : [`row ${index + 1} (invalid record)`],
+    );
+    if (invalid.length > 0) {
+      return NextResponse.json(
+        {
+          error: `${invalid.length} row${invalid.length === 1 ? " was" : "s were"} skipped due to errors: ${invalid.slice(0, 12).join("; ")}`,
+        },
+        { status: 400 },
+      );
+    }
+  const result = await replaceHrRecords(records as HrRecord[]);
     if (result.error) {
       const status = result.error === "Sign in required." ? 401 : 500;
       return NextResponse.json({ error: result.error }, { status });

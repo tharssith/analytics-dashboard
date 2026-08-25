@@ -3,10 +3,8 @@
 import { Card } from "@/components/ui/Card";
 import { navyButtonClass } from "@/components/upload/upload-ui";
 import { toolbarButtonClass } from "@/components/filters/FilterBar";
-import type { RequiredHeader } from "@/lib/csv";
-
 export type SuggestedFix = {
-  field: RequiredHeader;
+  field: string;
   original: string;
   suggested: string;
 };

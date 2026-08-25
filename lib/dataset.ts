@@ -138,10 +138,16 @@ function monthKeyFromUtc(date: Date): string | null {
 }
 
 function excelSerialToMonthKey(serial: number): string | null {
-  if (!Number.isFinite(serial) || serial < 1 || serial > 2_958_465) return null;
-  return monthKeyFromUtc(
+  // Business spreadsheets use Excel serials roughly 1900–2100 (~1 to 73,050).
+  // Do not treat arbitrary numbers such as 098765 as dates.
+  if (!Number.isFinite(serial) || serial < 1 || serial > 73_050) return null;
+  const key = monthKeyFromUtc(
     new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86_400_000),
   );
+  if (!key) return null;
+  const year = Number(key.slice(0, 4));
+  if (year < 1900 || year > 2100) return null;
+  return key;
 }
 
 export function toMonthKey(value: string): string | null {
@@ -153,6 +159,8 @@ export function toMonthKey(value: string): string | null {
   const iso = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
   if (iso) return monthKeyFromUtc(new Date(`${iso[1]}T00:00:00Z`));
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    // Leading zeros mean this was stored as text (e.g. "098765"), not an Excel serial.
+    if (/^0\d/.test(trimmed)) return null;
     const numeric = Number(trimmed);
     if (trimmed.length === 4 && numeric >= 1900 && numeric <= 2100) {
       return `${trimmed}-01`;
@@ -162,6 +170,10 @@ export function toMonthKey(value: string): string | null {
   const parsed = Date.parse(trimmed);
   if (Number.isFinite(parsed)) return monthKeyFromUtc(new Date(parsed));
   return null;
+}
+
+export function isParseableTimeValue(value: string): boolean {
+  return toMonthKey(value) != null;
 }
 
 export function buildLocalProfile(
@@ -235,7 +247,9 @@ export function filterGenericRows(
 ): RawCsvRow[] {
   return rows.filter((row) => {
     if (profile.timeField && startMonth && endMonth) {
-      const month = toMonthKey(row[profile.timeField] ?? "");
+      const raw = (row[profile.timeField] ?? "").trim();
+      const month = toMonthKey(raw);
+      // Unparseable dates stay in the dataset; never drop them from a date filter.
       if (month && (month < startMonth || month > endMonth)) return false;
     }
     if (profile.categoryField && category !== "All") {

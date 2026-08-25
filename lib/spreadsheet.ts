@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { parseRawCsv, type RawCsvParseResult, type RawCsvRow } from "@/lib/csv";
+import { parseRawCsv, parseIntegrity, type RawCsvParseResult, type RawCsvRow } from "@/lib/csv";
 
 type MatrixCell = {
   header: string;
@@ -208,11 +208,11 @@ function parseSheet(sheet: XLSX.WorkSheet): RawCsvParseResult {
     }
   }
   if (headerIndex < 0) {
-    return {
+    return parseIntegrity({
       headers: [],
       rows: [],
       errors: ["File needs a header row and at least one data row."],
-    };
+    });
   }
 
   const headerRow = matrix[headerIndex] ?? [];
@@ -230,11 +230,11 @@ function parseSheet(sheet: XLSX.WorkSheet): RawCsvParseResult {
   });
 
   if (headers.length < 2) {
-    return {
+    return parseIntegrity({
       headers: [],
       rows: [],
       errors: ["File needs a header row and at least one data row."],
-    };
+    });
   }
 
   const rows: RawCsvRow[] = [];
@@ -251,14 +251,14 @@ function parseSheet(sheet: XLSX.WorkSheet): RawCsvParseResult {
   }
 
   if (rows.length === 0) {
-    return {
+    return parseIntegrity({
       headers,
       rows: [],
       errors: ["File needs a header row and at least one data row."],
-    };
+    });
   }
 
-  return { headers, rows, errors: [] };
+  return parseIntegrity({ headers, rows, errors: [] });
 }
 
 export function parseRawXlsx(
@@ -283,11 +283,11 @@ export function parseRawXlsx(
   }
 
   if (!best) {
-    return {
+    return parseIntegrity({
       headers: [],
       rows: [],
       errors: ["Excel file has no usable header row."],
-    };
+    });
   }
 
   console.info("[upload] extracted headers", {
