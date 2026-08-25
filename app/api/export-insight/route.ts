@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const system = `You are a financial analyst writing a short export report for Northstar Financial.
+  const system = `You are a financial analyst writing a short export report for Cairn.
 Use only the numbers in the JSON. Do not invent columns or rows.
 Decide profit vs loss from the provided outcome.
 Name the percentage clearly.

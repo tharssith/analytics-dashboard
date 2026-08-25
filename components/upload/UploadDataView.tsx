@@ -22,7 +22,7 @@ import {
   type RawCsvRow,
   type RequiredHeader,
 } from "@/lib/csv";
-import { dataset, uniqueDepartments } from "@/lib/data";
+import { uniqueDepartments } from "@/lib/data";
 import {
   buildLocalProfile,
   isNumericColumn,
@@ -462,15 +462,12 @@ export function UploadDataView() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
-          {dataset.company.industry}
-        </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-          Upload data
+          Cairn
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Replace your saved dataset with a CSV or Excel file. Choose AI-assisted
-          or fully manual preparation.
+          Upload data — replace your saved dataset with a CSV or Excel file.
+          Choose AI-assisted or fully manual preparation.
         </p>
       </header>
 

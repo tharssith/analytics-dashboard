@@ -110,7 +110,7 @@ export function DownloadReportButton() {
               {dataset.company.industry}
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-              {dataset.company.name} HR Analytics
+              Cairn
             </h1>
             <p className="mt-1 text-sm text-muted">
               {dateRangeLabel} · {departmentLabel} · HQ {dataset.company.hq}

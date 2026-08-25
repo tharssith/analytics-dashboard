@@ -735,12 +735,15 @@ export function SpreadsheetEditor({
     <div className="flex min-h-screen flex-col bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">Edit data</p>
-          <h1 className="text-base font-semibold text-foreground">{fileName}</h1>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
+            Cairn
+          </p>
+          <h1 className="text-base font-semibold text-foreground">Edit data</h1>
           <p className="text-xs text-muted">
+            {fileName}
             {hrChecks
-              ? `${resolved} of ${flaggedIds.length || stillFailing.size} flagged rows resolved`
-              : `${rows.length.toLocaleString()} rows · select a cell, then type or edit in the formula bar`}
+              ? ` · ${resolved} of ${flaggedIds.length || stillFailing.size} flagged rows resolved`
+              : ` · ${rows.length.toLocaleString()} rows · select a cell, then type or edit in the formula bar`}
             {activeHeader ? ` · ${activeHeader}` : ""}
           </p>
         </div>

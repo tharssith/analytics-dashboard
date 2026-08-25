@@ -51,6 +51,7 @@ import {
   type VisualKind,
   type WorkspaceView,
 } from "@/lib/analysis-workspace";
+import { dataset as company } from "@/lib/data";
 import { KIND_LABELS } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
 
@@ -223,9 +224,12 @@ export function AnalysisWorkspace() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-navy">
-              {dataset ? KIND_LABELS[dataset.kind] : "Workforce"}
+              {dataset && !isHrDashboard
+                ? KIND_LABELS[dataset.kind]
+                : company.company.industry}
             </p>
-            <h1 className="text-sm font-semibold text-foreground">Analysis workspace</h1>
+            <h1 className="text-sm font-semibold text-foreground">Cairn</h1>
+            <p className="text-[11px] text-muted">Analysis workspace</p>
           </div>
           <FilterBar actionHref="/dashboard" actionLabel="Dashboard" actionIcon="back" />
         </div>

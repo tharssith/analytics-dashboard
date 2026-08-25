@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Northstar Financial — HR Analytics",
-  description: "Corporate HR analytics dashboard for Northstar Financial",
+  title: "Cairn",
+  description: "Monitor, diagnose, and forecast any business dataset",
 };
 
 export default function RootLayout({

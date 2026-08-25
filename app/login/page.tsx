@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { dataset } from "@/lib/data";
 import { auth } from "@/lib/auth/server";
 import { isNeonAuthConfigured } from "@/lib/auth/env";
 
@@ -28,14 +27,11 @@ export default async function LoginPage({
 
   return (
     <main className="flex h-screen flex-col items-center justify-center overflow-hidden bg-background px-6">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
-        {dataset.company.industry}
-      </p>
-      <h1 className="mt-3 text-center text-3xl font-semibold tracking-tight text-foreground">
-        Log in or create an account
+      <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground">
+        Cairn
       </h1>
       <p className="mt-2 max-w-sm text-center text-sm text-muted">
-        {dataset.company.name} HR Analytics
+        Log in or create an account
       </p>
       {!isNeonAuthConfigured() ? (
         <p className="mt-6 max-w-sm text-center text-sm text-rag-red">

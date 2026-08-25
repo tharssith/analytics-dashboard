@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { dataset } from "@/lib/data";
 import { auth } from "@/lib/auth/server";
 import { isNeonAuthConfigured } from "@/lib/auth/env";
 
@@ -16,15 +15,12 @@ export default async function LandingPage() {
 
   return (
     <main className="flex h-screen flex-col items-center justify-center overflow-hidden bg-background px-6">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-navy">
-        {dataset.company.industry}
-      </p>
-      <h1 className="mt-3 max-w-xl text-center text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-        {dataset.company.name} HR Analytics
+      <h1 className="max-w-xl text-center text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+        Cairn
       </h1>
       <p className="mt-4 max-w-lg text-center text-sm leading-6 text-muted sm:text-base">
-        Monitor, diagnose, and forecast workforce health — with an AI that shows
-        its work
+        Monitor, diagnose, and forecast any business dataset — with an AI that
+        shows its work
       </p>
       <Link
         href={href}

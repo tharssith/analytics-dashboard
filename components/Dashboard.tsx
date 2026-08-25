@@ -73,14 +73,12 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
             {dataset && !isHrDashboard ? KIND_LABELS[dataset.kind] : company.company.industry}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-            {dataset && !isHrDashboard
-              ? `${KIND_LABELS[dataset.kind]} analytics`
-              : `${company.company.name} HR Analytics`}
+            Cairn
           </h1>
           <p className="mt-1 text-sm text-muted">
             {dataset && !isHrDashboard
               ? `${dataset.filename} · ${genericRows.length.toLocaleString("en-US")} rows · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
-              : `HQ ${company.company.hq} · Monitor, diagnose, and forecast workforce health`}
+              : `HQ ${company.company.hq} · Monitor, diagnose, and forecast any business dataset`}
           </p>
         </header>
 

@@ -24,7 +24,7 @@ export async function downloadExcelReport(model: ExportModel): Promise<void> {
   const XLSX = await import("xlsx");
   const book = XLSX.utils.book_new();
   const report = [
-    ["Northstar Financial export"],
+    ["Cairn export"],
     [model.filename],
     [model.kindLabel, model.dateRangeLabel, model.categoryLabel],
     [],
@@ -109,7 +109,7 @@ export async function downloadPptReport(model: ExportModel): Promise<void> {
   const mod = await import("pptxgenjs");
   const PptxGenJS = mod.default;
   const pptx = new PptxGenJS();
-  pptx.author = "Northstar Financial";
+  pptx.author = "Cairn";
   pptx.title = `${model.filename} export`;
   pptx.subject = model.outcome.headline;
 
@@ -327,7 +327,7 @@ export async function downloadPdfReport(model: ExportModel): Promise<void> {
     y += options?.gap ?? 6;
   };
 
-  write("NORTHSTAR FINANCIAL EXPORT", { size: 10, color: NAVY, bold: true, gap: 2 });
+  write("CAIRN EXPORT", { size: 10, color: NAVY, bold: true, gap: 2 });
   write(model.filename, { size: 18, color: NAVY, bold: true, gap: 4 });
   write(`${model.kindLabel} · ${model.dateRangeLabel} · ${model.categoryLabel}`, { size: 11, color: "64748B" });
   write(model.outcome.kind.toUpperCase(), { size: 28, color: outcomeColor(model), bold: true, gap: 2 });
