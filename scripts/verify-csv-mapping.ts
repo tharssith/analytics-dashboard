@@ -11,7 +11,7 @@ import {
 import { parseRawXlsx } from "../lib/spreadsheet";
 import { buildLocalProfile, filterGenericRows, toMonthKey } from "../lib/dataset";
 import { inspectGenericRows, inspectRows, mappedRowsFromRaw } from "../lib/upload-validate";
-import { shouldShowChoice, stageAfterChoice } from "../lib/upload-flow";
+import { aiUsesHrMapping, shouldShowChoice, stageAfterChoice } from "../lib/upload-flow";
 
 const csv = `Period,Dept,Emp Count,Target HC,Hires,Exits,Days to Hire,Referral %,Job Board %,Agency %
 2024-11,Sales,47,51,3,2,33,40,35,25
@@ -222,6 +222,9 @@ assert.equal(stageAfterChoice("hr"), "mapping");
 assert.equal(stageAfterChoice(null), "mapping");
 assert.equal(stageAfterChoice("generic"), "roles");
 assert.equal(stageAfterChoice("sales"), "roles");
+assert.equal(aiUsesHrMapping("hr", true), true);
+assert.equal(aiUsesHrMapping("hr", false), false);
+assert.equal(aiUsesHrMapping("sales", true), false);
 console.log("choice screen is first for every parsed file; HR goes to mapping, other types go to roles");
 
 const hrProfile = buildLocalProfile("northstar-hr.csv", titledRaw.headers, titledRaw.rows);

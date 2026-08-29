@@ -17,3 +17,10 @@ export function shouldShowChoice(stage: UploadStage, rowCount: number): boolean 
 export function stageAfterChoice(kind: DatasetKind | null | undefined): "mapping" | "roles" {
   return !kind || kind === "hr" ? "mapping" : "roles";
 }
+
+export function aiUsesHrMapping(
+  kind: DatasetKind | null | undefined,
+  mappingComplete: boolean,
+): boolean {
+  return kind === "hr" && mappingComplete;
+}

@@ -35,6 +35,7 @@ import {
 import { useFilters } from "@/lib/filters-context";
 import { clearUploadDraft, writeUploadDraft } from "@/lib/upload-draft";
 import {
+  aiUsesHrMapping,
   shouldShowChoice,
   stageAfterChoice,
   type UploadPrepMode,
@@ -165,33 +166,15 @@ export function UploadDataView() {
     return current;
   }
 
-  async function startHrMapping(nextMode: Mode) {
-    const fileHeaders = headers;
-    setStage("mapping");
-    setSaveError(null);
-    setMappingError(null);
-    setMapping(emptyMapping());
-    if (nextMode === "manual") {
-      setMapping(suggestColumnMapping(fileHeaders));
-      return;
-    }
+  async function fetchAiColumnMapping(fileHeaders: string[]): Promise<ColumnMapping> {
     const local = suggestColumnMapping(fileHeaders);
-    setMapping(local);
-    setMappingLoading(true);
+    if (fileHeaders.length === 0) return local;
     const requestId = mapRequest.current + 1;
     mapRequest.current = requestId;
     console.info("[upload] map-columns request", {
       count: fileHeaders.length,
       headers: fileHeaders,
     });
-    if (fileHeaders.length === 0) {
-      setMapping(emptyMapping());
-      setMappingError(
-        "AI couldn't determine matches — please map manually below",
-      );
-      setMappingLoading(false);
-      return;
-    }
     try {
       const response = await fetch("/api/map-columns", {
         method: "POST",
@@ -204,35 +187,35 @@ export function UploadDataView() {
         status: response.status,
         payload,
       });
-      if (mapRequest.current !== requestId) return;
-      if (!response.ok) {
-        setMapping(local);
-        if (mappingFillCount(local) === 0) {
-          setMappingError(
-            "AI couldn't determine matches — please map manually below",
-          );
-        }
-        return;
-      }
+      if (mapRequest.current !== requestId) return local;
+      if (!response.ok) return local;
       const next = sanitizeColumnMapping(payload, fileHeaders);
-      setMapping(next);
-      if (mappingFillCount(next) === 0) {
-        setMappingError(
-          "AI couldn't determine matches — please map manually below",
-        );
-      }
+      return mappingFillCount(next) >= mappingFillCount(local) ? next : local;
     } catch (error) {
       console.info("[upload] map-columns failed", error);
-      if (mapRequest.current !== requestId) return;
-      setMapping(local);
-      if (mappingFillCount(local) === 0) {
-        setMappingError(
-          "AI couldn't determine matches — please map manually below",
-        );
-      }
-    } finally {
-      if (mapRequest.current === requestId) setMappingLoading(false);
+      return local;
     }
+  }
+
+  async function startHrMapping(nextMode: Mode) {
+    const fileHeaders = headers;
+    setStage("mapping");
+    setSaveError(null);
+    setMappingError(null);
+    setMapping(emptyMapping());
+    if (nextMode === "manual") {
+      setMapping(suggestColumnMapping(fileHeaders));
+      return;
+    }
+    setMappingLoading(true);
+    const next = await fetchAiColumnMapping(fileHeaders);
+    setMapping(next);
+    setMappingLoading(false);
+    if (isMappingComplete(next, fileHeaders)) {
+      await continueMapping(next, "ai");
+      return;
+    }
+    setMappingError("AI couldn't determine matches — please map manually below");
   }
 
   async function chooseMode(nextMode: Mode) {
@@ -244,21 +227,48 @@ export function UploadDataView() {
       (fileName ? buildLocalProfile(fileName, headers, rawRows) : null);
     if (!local) return;
     setProfile(local);
-    const initialStage = stageAfterChoice(local.kind);
-    setStage(initialStage);
     if (nextMode === "manual") {
+      const initialStage = stageAfterChoice(local.kind);
+      setStage(initialStage);
       if (initialStage === "mapping") await startHrMapping(nextMode);
       return;
     }
+
     setTypeLoading(true);
+    setMappingLoading(true);
+    setStage("roles");
     const nextProfile = await detectProfile(local);
     setProfile(nextProfile);
-    setTypeLoading(false);
-    if (stageAfterChoice(nextProfile.kind) === "mapping") {
-      await startHrMapping(nextMode);
-      return;
+
+    if (nextProfile.kind === "hr" || nextProfile.typeFromHeaders === "hr") {
+      const aiMapping = await fetchAiColumnMapping(headers);
+      setMapping(aiMapping);
+      setTypeLoading(false);
+      setMappingLoading(false);
+      if (aiUsesHrMapping(nextProfile.kind, isMappingComplete(aiMapping, headers))) {
+        await continueMapping(aiMapping, "ai");
+        return;
+      }
+      if (nextProfile.kind === "hr" && nextProfile.typeFromHeaders === "hr") {
+        setStage("mapping");
+        setMappingError("AI couldn't determine matches — please map manually below");
+        return;
+      }
     }
-    setStage("roles");
+
+    const genericProfile =
+      nextProfile.kind === "hr"
+        ? withKind(
+            nextProfile,
+            nextProfile.typeFromHeaders !== "hr"
+              ? nextProfile.typeFromHeaders
+              : "generic",
+          )
+        : nextProfile;
+    setProfile(genericProfile);
+    setTypeLoading(false);
+    setMappingLoading(false);
+    await saveGenericDataset(genericProfile, "ai");
   }
 
   function metricsFor(timeField: string | null, categoryField: string | null): string[] {
@@ -280,24 +290,27 @@ export function UploadDataView() {
     }
   }
 
-  async function saveGenericDataset() {
-    if (!profile || !fileName) return;
+  async function saveGenericDataset(
+    activeProfile = profile,
+    activeMode: Mode = mode ?? "manual",
+  ) {
+    if (!activeProfile || !fileName) return;
     const skipMessage = skippedRowsMessage(sourceDataRows, rawRows.length, droppedRows);
     if (skipMessage) {
       setSaveError(skipMessage);
       return;
     }
-    const issues = inspectGenericRows(rawRows, profile.timeField);
+    const issues = inspectGenericRows(rawRows, activeProfile.timeField);
     if (issues.length > 0) {
       const ids = failingRowIds(issues);
       setFlaggedIds(ids);
       setSaveError(remainingIssuesMessage(issues));
       const nextAudit = [
         `Parsed ${rawRows.length} of ${sourceDataRows} source rows`,
-        `${ids.size} row${ids.size === 1 ? "" : "s"} flagged for invalid ${profile.timeField ?? "date"} values`,
+        `${ids.size} row${ids.size === 1 ? "" : "s"} flagged for invalid ${activeProfile.timeField ?? "date"} values`,
       ];
       setAudit(nextAudit);
-      if (mode === "ai") {
+      if (activeMode === "ai") {
         setStage("ai-fixes");
         await requestAiFixes(issues);
         return;
@@ -307,7 +320,11 @@ export function UploadDataView() {
     }
     setBusy(true);
     setSaveError(null);
-    const ok = await replaceDataset({ ...profile, filename: fileName, rows: rawRows });
+    const ok = await replaceDataset({
+      ...activeProfile,
+      filename: fileName,
+      rows: rawRows,
+    });
     setBusy(false);
     if (!ok) {
       setSaveError("Could not save this dataset.");
@@ -381,15 +398,19 @@ export function UploadDataView() {
     }
   }
 
-  async function continueMapping() {
-    if (!isMappingComplete(mapping, headers)) return;
-    const rows = mappedRowsFromRaw(applyColumnMapping(rawRows, mapping));
+  async function continueMapping(
+    activeMapping = mapping,
+    activeMode: Mode = mode ?? "manual",
+  ) {
+    if (!isMappingComplete(activeMapping, headers)) return;
+    setMapping(activeMapping);
+    const rows = mappedRowsFromRaw(applyColumnMapping(rawRows, activeMapping));
     setMappedRows(rows);
-    const mappedCount = Object.values(mapping).filter(Boolean).length;
-    const prefix = mode === "ai" ? "AI" : "Manual";
+    const mappedCount = Object.values(activeMapping).filter(Boolean).length;
+    const prefix = activeMode === "ai" ? "AI" : "Manual";
     const nextAudit = [`${prefix}: mapped ${mappedCount} columns`];
     const issues = inspectRows(rows);
-    if (mode === "manual") {
+    if (activeMode === "manual") {
       setAudit(nextAudit);
       if (issues.length === 0) {
         await persistRows(rows);
@@ -399,18 +420,17 @@ export function UploadDataView() {
       goToEditor(nextAudit, failingRowIds(issues), rows);
       return;
     }
+    setAudit(nextAudit);
     if (issues.length === 0) {
-      setAudit(nextAudit);
-      setStage("ready");
+      await persistRows(rows);
       return;
     }
     setFlaggedIds(failingRowIds(issues));
-    setAudit(nextAudit);
     setStage("ai-fixes");
     await requestAiFixes(issues);
   }
 
-  function applyAiFixes() {
+  async function applyAiFixes() {
     const generic = Boolean(profile && profile.kind !== "hr");
     if (generic) {
       let nextRows = rawRows;
@@ -433,7 +453,7 @@ export function UploadDataView() {
         fixNotes.length > 0 ? [...audit, `AI: ${fixNotes.join(", ")}`] : audit;
       setAudit(nextAudit);
       if (remaining.length === 0) {
-        setStage("roles");
+        await saveGenericDataset(profile, "ai");
         return;
       }
       goToEditor(nextAudit, failingRowIds(remaining), [], nextRows, "generic");
@@ -461,7 +481,7 @@ export function UploadDataView() {
       fixNotes.length > 0 ? [...current, `AI: ${fixNotes.join(", ")}`] : current,
     );
     if (remaining.length === 0) {
-      setStage("ready");
+      await persistRows(nextRows);
       return;
     }
     goToEditor(
@@ -557,6 +577,11 @@ export function UploadDataView() {
 
   const issuesLeft = inspectRows(mappedRows).length;
   const canSave = mappedRows.length > 0 && issuesLeft === 0 && !busy;
+  const aiPreparing =
+    mode === "ai" &&
+    (typeLoading || mappingLoading) &&
+    stage !== "ai-fixes" &&
+    stage !== "saved";
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background px-4 py-6 sm:px-6 lg:px-8">
@@ -610,11 +635,25 @@ export function UploadDataView() {
         />
       ) : null}
 
-      {profile && rawRows.length > 0 && stage !== "choice" && stage !== "saved" ? (
+      {aiPreparing ? (
+        <Card className="mb-5 max-w-xl p-5">
+          <p className="text-sm font-medium text-foreground">AI is preparing your file…</p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Matching columns and checking values. You will only be asked to
+            review leftover errors the AI cannot fix.
+          </p>
+        </Card>
+      ) : null}
+
+      {profile &&
+      rawRows.length > 0 &&
+      mode === "manual" &&
+      stage !== "choice" &&
+      stage !== "saved" ? (
         <DatasetTypeCard
           profile={profile}
           loading={typeLoading}
-          aiAssisted={mode === "ai"}
+          aiAssisted={false}
           onKindChange={onKindChange}
           onTimeChange={(field) =>
             setProfile((current) =>
@@ -641,7 +680,7 @@ export function UploadDataView() {
         />
       ) : null}
 
-      {stage === "roles" && profile && profile.kind !== "hr" ? (
+      {stage === "roles" && mode === "manual" && profile && profile.kind !== "hr" ? (
         <div className="mb-5 max-w-xl">
           {saveError ? <p className="mb-3 text-sm text-rag-red">{saveError}</p> : null}
           <button
@@ -655,7 +694,10 @@ export function UploadDataView() {
         </div>
       ) : null}
 
-      {stage === "mapping" && mode && (!profile || profile.kind === "hr") ? (
+      {stage === "mapping" &&
+      mode &&
+      !aiPreparing &&
+      (!profile || profile.kind === "hr") ? (
         <ColumnMappingForm
           key={`${fileName}:${headers.join("|")}`}
           headers={headers}
@@ -677,7 +719,7 @@ export function UploadDataView() {
           loading={aiLoading}
           suggestions={aiSuggestions}
           skipped={aiSkipped}
-          onApply={applyAiFixes}
+          onApply={() => void applyAiFixes()}
           onSkip={openManualFix}
         />
       ) : null}
