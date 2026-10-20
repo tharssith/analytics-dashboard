@@ -96,6 +96,11 @@ function looksLikeCategory(header: string): boolean {
   );
 }
 
+export function looksLikeIdentifier(header: string): boolean {
+  const name = normalize(header);
+  return /(^id$| id$|_id$|code$|sku$)/.test(name) || /id$/i.test(header.trim());
+}
+
 export function parseNumber(value: string): number | null {
   const trimmed = value.replace(/[%$,]/g, "").trim();
   if (trimmed === "") return null;
@@ -125,7 +130,11 @@ export function inferRoles(
     headers.find((header) => header !== timeField && !isNumericColumn(rows, header)) ??
     null;
   const metricFields = headers.filter(
-    (header) => header !== timeField && header !== categoryField && isNumericColumn(rows, header),
+    (header) =>
+      header !== timeField &&
+      header !== categoryField &&
+      isNumericColumn(rows, header) &&
+      !looksLikeIdentifier(header),
   );
   return { timeField, categoryField, metricFields };
 }

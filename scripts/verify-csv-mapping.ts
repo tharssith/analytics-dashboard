@@ -252,6 +252,8 @@ assert.equal(toMonthKey("098765"), null);
 assert.equal(toMonthKey("2024-09-15"), "2024-09");
 const e1Profile = buildLocalProfile("E1 BaseData.csv", e1.headers, e1.rows);
 assert.equal(e1Profile.timeField, "Date");
+assert.equal(e1Profile.metricFields.includes("OrderID"), false);
+assert.ok(e1Profile.metricFields.includes("Sales"));
 const e1Issues = inspectGenericRows(e1.rows, e1Profile.timeField);
 assert.equal(e1Issues.length, 1);
 assert.equal(e1Issues[0]?.rowId, "r11");

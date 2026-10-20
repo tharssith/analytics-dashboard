@@ -57,6 +57,7 @@ assert.ok(generic.swingRows[0].label.includes("3") || generic.swingRows[0].value
 assert.ok(generic.reverseStory);
 const withoutTop = generic.excludeKValue ?? 0;
 assert.ok(withoutTop < 50);
+assert.ok(attrition.excludeKValue != null);
 
 const broken = checkClaim(claim, generic);
 assert.equal(broken.stillTrue, false);

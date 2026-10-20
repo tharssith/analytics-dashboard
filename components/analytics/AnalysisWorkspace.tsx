@@ -468,12 +468,25 @@ export function AnalysisWorkspace() {
                   />
                 </div>
               </div>
-              <div className="min-h-0 flex-1 bg-white p-3">
-                <div className="mb-2 flex items-center justify-between">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-foreground">{viz.title}</p>
-                  <p className="text-[11px] text-muted">
-                    {viz.rowCount.toLocaleString("en-US")} rows · {table.filename}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] text-muted">
+                      {viz.rowCount.toLocaleString("en-US")} rows · {table.filename}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setOpinionOpen((value) => !value)}
+                      className={`h-7 rounded-sm border px-2 text-[11px] font-medium ${
+                        opinionOpen
+                          ? "border-navy bg-navy text-white"
+                          : "border-border bg-white text-foreground hover:border-navy/40"
+                      }`}
+                    >
+                      Second opinion
+                    </button>
+                  </div>
                 </div>
                 {showNote ? (
                   <textarea
@@ -486,25 +499,23 @@ export function AnalysisWorkspace() {
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => setOpinionOpen((value) => !value)}
+                  onClick={() => setOpinionOpen(true)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      setOpinionOpen((value) => !value);
-                    }
+                    if (event.key === "Enter" || event.key === " ") setOpinionOpen(true);
                   }}
-                  className={`h-[calc(100%-2rem)] min-h-[220px] w-full rounded-sm border bg-[#fafafa] p-2 text-left ${
-                    opinionOpen ? "border-navy" : "border-border"
+                  className={`min-h-[160px] w-full rounded-sm border bg-[#fafafa] p-2 text-left ${
+                    opinionOpen ? "h-[42%] border-navy" : "min-h-0 flex-1 border-border"
                   }`}
                 >
                   <WorkspaceChart visual={spec.visual} viz={viz} showLabels={spec.showLabels} />
                 </div>
                 <p className="mt-1 text-[11px] text-muted">
                   {provenance
-                    ? `${provenance.sourceRowCount.toLocaleString("en-US")} source · ${provenance.usedRowCount.toLocaleString("en-US")} used · click the visual for a second opinion`
-                    : "Click the visual for a second opinion."}
+                    ? `${provenance.sourceRowCount.toLocaleString("en-US")} source · ${provenance.usedRowCount.toLocaleString("en-US")} used`
+                    : "Add a category and a measure, then open Second opinion."}
                 </p>
                 {opinionOpen ? (
-                  <div className="mt-2 max-h-56 overflow-auto">
+                  <div className="mt-2 min-h-0 flex-1 overflow-auto">
                     <SecondOpinionCard provenance={provenance} spec={spec} custom={custom} />
                   </div>
                 ) : null}

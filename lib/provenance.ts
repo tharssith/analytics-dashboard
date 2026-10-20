@@ -203,10 +203,16 @@ export function hrKpiProvenance(
       withoutValue: next,
     });
   }
-  const swingRows = topSwings(swings);
-  const excludeIds = new Set(swingRows.map((row) => row.id));
-  const withoutTop = filtered.filter((record) => !excludeIds.has(hrRecordId(record)));
-  const excludeKValue = kpiNumeric(withoutTop, kpiId);
+  let swingRows = topSwings(swings);
+  let excludeIds = new Set(swingRows.map((row) => row.id));
+  let withoutTop = filtered.filter((record) => !excludeIds.has(hrRecordId(record)));
+  let excludeKValue = kpiNumeric(withoutTop, kpiId);
+  while (excludeKValue == null && swingRows.length > 1) {
+    swingRows = swingRows.slice(0, -1);
+    excludeIds = new Set(swingRows.map((row) => row.id));
+    withoutTop = filtered.filter((record) => !excludeIds.has(hrRecordId(record)));
+    excludeKValue = kpiNumeric(withoutTop, kpiId);
+  }
   const storyAfter = kpiStatus(withoutTop, kpiId);
   const movedEnough =
     excludeKValue != null && Math.abs(excludeKValue - value) / Math.max(1, Math.abs(value)) > 0.12;
