@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Pencil, Upload } from "lucide-react";
 import { DiagnosePanel } from "@/components/diagnose/DiagnosePanel";
@@ -14,12 +14,14 @@ import { GenericAnalyticsView } from "@/components/dataset/GenericAnalyticsView"
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusChangeToast } from "@/components/ui/StatusChangeToast";
+import { ProvenancePanel } from "@/components/provenance/ProvenancePanel";
 import { dataset as company } from "@/lib/data";
 import { KIND_LABELS } from "@/lib/dataset";
 import { diagnoseKpi } from "@/lib/diagnose";
 import { useFilters } from "@/lib/filters-context";
 import { computeKpis } from "@/lib/kpis";
 import type { KpiId } from "@/lib/types";
+import { filterKeyOf, hrKpiProvenance } from "@/lib/provenance";
 
 function DashboardSkeleton() {
   return (
@@ -46,9 +48,19 @@ function DashboardSkeleton() {
 }
 
 function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
-  const { records, loading, dataError, dataset, isHrDashboard, genericRows } = useFilters();
-  const [expanded, setExpanded] = useState<KpiId | null>(null);
+  const {
+    records,
+    sourceRecords,
+    loading,
+    dataError,
+    dataset,
+    isHrDashboard,
+    genericRows,
+    filters,
+  } = useFilters();
+  const [expanded, setExpanded] = useState<KpiId | "forecast" | null>(null);
   const [bonusPct, setBonusPct] = useState(0);
+  const key = filterKeyOf(filters);
 
   const kpis = useMemo(() => computeKpis(records), [records]);
   const diagnoses = useMemo(() => {
@@ -58,12 +70,6 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
     }
     return next;
   }, [kpis.tiles, records]);
-
-  useEffect(() => {
-    if (!expanded) return;
-    const tile = kpis.tiles.find((item) => item.id === expanded);
-    if (!tile?.expandable) setExpanded(null);
-  }, [expanded, kpis.tiles]);
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background xl:flex-row">
@@ -126,13 +132,22 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
                     }`}
                   >
                     <KpiTile
-                      tile={tile}
+                      tile={{ ...tile, expandable: true }}
                       expanded={isOpen}
                       onToggle={() =>
                         setExpanded((current) =>
                           current === tile.id ? null : (tile.id as KpiId),
                         )
                       }
+                    />
+                    <ProvenancePanel
+                      open={isOpen}
+                      provenance={hrKpiProvenance(
+                        records,
+                        sourceRecords,
+                        tile.id as KpiId,
+                        key,
+                      )}
                     />
                     <DiagnosePanel open={isOpen} model={model} />
                   </Card>
@@ -142,7 +157,21 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
 
             <div className="mt-6 grid grid-cols-12 gap-4">
               <div className="col-span-12 lg:col-span-8">
-                <ForecastChart series={kpis.series} />
+                <ForecastChart
+                  series={kpis.series}
+                  selected={expanded === "forecast"}
+                  onInspect={() =>
+                    setExpanded((current) => (current === "forecast" ? null : "forecast"))
+                  }
+                />
+                {expanded === "forecast" ? (
+                  <div className="overflow-hidden rounded-b-lg border border-t-0 border-border bg-card">
+                    <ProvenancePanel
+                      open
+                      provenance={hrKpiProvenance(records, sourceRecords, "headcount", key)}
+                    />
+                  </div>
+                ) : null}
               </div>
               <div className="col-span-12 lg:col-span-4">
                 <WhatIfSlider

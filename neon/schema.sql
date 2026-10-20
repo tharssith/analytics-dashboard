@@ -37,3 +37,13 @@ create table if not exists public.user_datasets (
   rows jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.dataset_claims (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  created_at timestamptz not null default now(),
+  payload jsonb not null
+);
+
+create index if not exists dataset_claims_user_idx
+  on public.dataset_claims (user_id, created_at desc);

@@ -28,10 +28,10 @@ export function KpiTile({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const interactive = tile.expandable;
+  const interactive = true;
   const className = [
     "flex w-full min-w-0 flex-col gap-3 p-4 text-left transition-colors",
-    interactive ? "cursor-pointer hover:bg-background/80" : "cursor-default",
+    "cursor-pointer hover:bg-background/80",
   ].join(" ");
 
   const body = (

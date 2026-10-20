@@ -13,7 +13,15 @@ import {
 import { forecastHeadcount } from "@/lib/forecast";
 import type { MonthlyPoint } from "@/lib/types";
 
-export function ForecastChart({ series }: { series: MonthlyPoint[] }) {
+export function ForecastChart({
+  series,
+  selected = false,
+  onInspect,
+}: {
+  series: MonthlyPoint[];
+  selected?: boolean;
+  onInspect?: () => void;
+}) {
   const forecast = forecastHeadcount(series);
 
   if (!forecast) {
@@ -25,13 +33,24 @@ export function ForecastChart({ series }: { series: MonthlyPoint[] }) {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onInspect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onInspect?.();
+      }}
+      className={`w-full rounded-lg border bg-card p-5 text-left ${
+        selected ? "border-navy" : "border-border"
+      }`}
+    >
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-foreground">
           Headcount outlook
         </h2>
         <p className="mt-1 text-xs text-muted">
           Six-month trend line with a 95% prediction band that widens further out.
+          Click to see the rows that swing this forecast.
         </p>
       </div>
       <div className="h-72">

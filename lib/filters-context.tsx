@@ -20,6 +20,7 @@ import {
 import { computeKpis } from "./kpis";
 import type { DepartmentFilter, FilterState, HrRecord, RagStatus } from "./types";
 import type { RawCsvRow } from "./csv";
+import type { ClaimCheck, DatasetClaim } from "./claims";
 import {
   DEFAULT_HR_PROFILE,
   filterGenericRows,
@@ -33,6 +34,11 @@ const DATASET_KEY = "northstar-active-dataset";
 export type KpiStatusChange = {
   label: string;
   status: RagStatus | "neutral";
+};
+
+export type ClaimAlert = {
+  stillTrue: boolean;
+  message: string;
 };
 
 type FiltersContextValue = {
@@ -54,6 +60,9 @@ type FiltersContextValue = {
   genericRows: RawCsvRow[];
   kpiStatusChanges: KpiStatusChange[];
   clearKpiStatusChanges: () => void;
+  claimAlerts: ClaimAlert[];
+  clearClaimAlerts: () => void;
+  saveClaim: (claim: DatasetClaim) => Promise<boolean>;
   records: HrRecord[];
   dateRangeLabel: string;
   departmentLabel: string;
@@ -81,17 +90,38 @@ function writeLocalDataset(dataset: StoredDataset | null) {
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
 
+function asClaimChecks(value: unknown): ClaimCheck[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is ClaimCheck =>
+      Boolean(item) &&
+      typeof item === "object" &&
+      typeof (item as ClaimCheck).message === "string",
+  );
+}
+
+function checksToAlerts(checks: ClaimCheck[]): ClaimAlert[] {
+  const broken = checks.filter((item) => !item.stillTrue);
+  return (broken.length > 0 ? broken : checks.slice(0, 1)).map((item) => ({
+    stillTrue: item.stillTrue,
+    message: item.message,
+  }));
+}
+
 async function readJson(response: Response): Promise<{
   records?: HrRecord[];
   record?: HrRecord;
   error?: string;
+  claimChecks?: ClaimCheck[];
 }> {
   try {
-    return (await response.json()) as {
+    const payload = (await response.json()) as {
       records?: HrRecord[];
       record?: HrRecord;
       error?: string;
+      claimChecks?: unknown;
     };
+    return { ...payload, claimChecks: asClaimChecks(payload.claimChecks) };
   } catch {
     return { error: "The database request did not return JSON." };
   }
@@ -118,6 +148,7 @@ export function FiltersProvider({
   const [kpiStatusChanges, setKpiStatusChanges] = useState<KpiStatusChange[]>(
     [],
   );
+  const [claimAlerts, setClaimAlerts] = useState<ClaimAlert[]>([]);
 
   useEffect(() => {
     const local = readLocalDataset();
@@ -248,6 +279,9 @@ export function FiltersProvider({
     }
     noteStatusShifts(sourceRecords, payload.records);
     setSourceRecords(cloneRecords(payload.records));
+    if (payload.claimChecks && payload.claimChecks.length > 0) {
+      setClaimAlerts(checksToAlerts(payload.claimChecks));
+    }
     return true;
   }, [noteStatusShifts, sourceRecords]);
 
@@ -271,6 +305,9 @@ export function FiltersProvider({
       };
       setDataset(hrDataset);
       writeLocalDataset(hrDataset);
+      if (payload.claimChecks && payload.claimChecks.length > 0) {
+        setClaimAlerts(checksToAlerts(payload.claimChecks));
+      }
       return true;
     },
     [noteStatusShifts, sourceRecords],
@@ -284,17 +321,40 @@ export function FiltersProvider({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dataset: next }),
     });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      claimChecks?: unknown;
+    };
     if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (payload.error && payload.error !== "Could not save dataset.") {
         setDataError(payload.error);
       }
+    }
+    const checks = asClaimChecks(payload.claimChecks);
+    if (checks.length > 0) setClaimAlerts(checksToAlerts(checks));
+    return true;
+  }, []);
+
+  const saveClaim = useCallback(async (claim: DatasetClaim) => {
+    const response = await fetch("/api/claims", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ claim }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (payload.error) setDataError(payload.error);
+      return false;
     }
     return true;
   }, []);
 
   const clearKpiStatusChanges = useCallback(() => {
     setKpiStatusChanges([]);
+  }, []);
+
+  const clearClaimAlerts = useCallback(() => {
+    setClaimAlerts([]);
   }, []);
 
   const clearDataError = useCallback(() => {
@@ -341,15 +401,21 @@ export function FiltersProvider({
       categoryFieldLabel: dataset?.categoryField || "Department",
       kpiStatusChanges,
       clearKpiStatusChanges,
+      claimAlerts,
+      clearClaimAlerts,
+      saveClaim,
       records,
       dateRangeLabel: formatDateRange(filters.startMonth, filters.endMonth),
       departmentLabel: filters.department,
       genericRows,
     };
   }, [
+    claimAlerts,
+    clearClaimAlerts,
     clearDataError,
     clearKpiStatusChanges,
     dataError,
+    saveClaim,
     dataset,
     filters,
     kpiStatusChanges,

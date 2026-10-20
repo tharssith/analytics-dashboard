@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recheckClaims } from "@/lib/claims-store";
 import {
   getOrSeedHrRecords,
   replaceHrRecords,
@@ -55,7 +56,8 @@ export async function POST(request: Request) {
       const status = result.error === "Sign in required." ? 401 : 500;
       return NextResponse.json({ error: result.error }, { status });
     }
-    return NextResponse.json({ records: result.records });
+    const checked = await recheckClaims();
+    return NextResponse.json({ records: result.records, claimChecks: checked.checks });
   }
 
   if (body.action === "replace") {
@@ -79,7 +81,8 @@ export async function POST(request: Request) {
       const status = result.error === "Sign in required." ? 401 : 500;
       return NextResponse.json({ error: result.error }, { status });
     }
-    return NextResponse.json({ records: result.records });
+    const checked = await recheckClaims();
+    return NextResponse.json({ records: result.records, claimChecks: checked.checks });
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });

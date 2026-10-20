@@ -48,6 +48,18 @@ export async function downloadExcelReport(model: ExportModel): Promise<void> {
     ["Rows in export", model.rowCount],
     ["Rows in file", model.fileRowCount],
     ["Columns", model.columnCount],
+    ...(model.brief
+      ? [
+          [],
+          ["Decision brief"],
+          ["Claim status", model.brief.claimStatus],
+          ["Claim", model.brief.claimStatement],
+          ["Rows", `${model.brief.sourceRowCount} source / ${model.brief.usedRowCount} used`],
+          ["Exclude", model.brief.excludeNarrative],
+          ["Action", model.brief.action],
+          ...model.brief.swingRows.map((row, index) => [`Swing ${index + 1}`, `${row.label} — ${row.hint}`]),
+        ]
+      : []),
     ...(model.analysis
       ? [
           [],
@@ -387,6 +399,23 @@ export async function downloadPdfReport(model: ExportModel): Promise<void> {
     }
   }
 
+  if (model.brief) {
+    write("Decision brief", { size: 14, color: NAVY, bold: true });
+    write(`Claim: ${model.brief.claimStatus.toUpperCase()}`, {
+      size: 12,
+      bold: true,
+      color: model.brief.claimStatus === "broken" ? RED : GREEN,
+    });
+    write(model.brief.claimStatement);
+    write(
+      `${model.brief.sourceRowCount} source rows · ${model.brief.usedRowCount} used`,
+      { color: "64748B" },
+    );
+    write(model.brief.excludeNarrative);
+    for (const row of model.brief.swingRows) write(`• ${row.label} — ${row.hint}`, { color: "475569" });
+    write(model.brief.action, { bold: true });
+  }
+
   write("Data snapshot", { size: 14, color: NAVY, bold: true });
   write(model.headers.join(" | "), { size: 8, bold: true, color: NAVY, gap: 2 });
   for (const row of model.previewRows) {
@@ -394,4 +423,60 @@ export async function downloadPdfReport(model: ExportModel): Promise<void> {
   }
 
   downloadBlob(pdf.output("blob"), `${baseName(model)}.pdf`);
+}
+
+export async function downloadDecisionBrief(model: ExportModel): Promise<void> {
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 48;
+  let y = 56;
+  const brief = model.brief;
+
+  const write = (text: string, options?: { size?: number; color?: string; bold?: boolean; gap?: number }) => {
+    pdf.setFont("helvetica", options?.bold ? "bold" : "normal");
+    pdf.setFontSize(options?.size ?? 11);
+    const color = options?.color ?? "1E293B";
+    const r = Number.parseInt(color.slice(0, 2), 16);
+    const g = Number.parseInt(color.slice(2, 4), 16);
+    const b = Number.parseInt(color.slice(4, 6), 16);
+    pdf.setTextColor(r, g, b);
+    const lines = pdf.splitTextToSize(text, pageWidth - margin * 2) as string[];
+    for (const line of lines) {
+      pdf.text(line, margin, y);
+      y += (options?.size ?? 11) + 4;
+    }
+    y += options?.gap ?? 8;
+  };
+
+  write("CAIRN DECISION BRIEF", { size: 10, color: NAVY, bold: true, gap: 2 });
+  write(model.filename, { size: 20, color: NAVY, bold: true, gap: 4 });
+  write(`${model.kindLabel} · ${model.dateRangeLabel} · ${model.categoryLabel}`, {
+    size: 11,
+    color: "64748B",
+  });
+  write("What changed", { size: 13, color: NAVY, bold: true, gap: 4 });
+  write(model.outcome.headline, { size: 14, bold: true });
+  write(model.insight.prediction);
+  write("Which rows", { size: 13, color: NAVY, bold: true, gap: 4 });
+  write(
+    brief
+      ? `${brief.sourceRowCount} source rows · ${brief.usedRowCount} used for this number`
+      : `${model.fileRowCount} file rows · ${model.rowCount} in this export`,
+    { color: "64748B" },
+  );
+  write(brief?.excludeNarrative ?? model.forecast.localNarrative);
+  for (const row of brief?.swingRows ?? []) {
+    write(`• ${row.label} — ${row.hint}`, { color: "475569", gap: 2 });
+  }
+  write("Claim status", { size: 13, color: NAVY, bold: true, gap: 4 });
+  write((brief?.claimStatus ?? "unsaved").toUpperCase(), {
+    size: 16,
+    bold: true,
+    color: brief?.claimStatus === "broken" ? RED : GREEN,
+  });
+  if (brief?.claimStatement) write(brief.claimStatement);
+  write("What to do", { size: 13, color: NAVY, bold: true, gap: 4 });
+  write(brief?.action ?? model.insight.prediction, { bold: true });
+  downloadBlob(pdf.output("blob"), `${fileSafe(model.filename)}-decision-brief-${exportStamp()}.pdf`);
 }

@@ -54,6 +54,8 @@ import {
 import { dataset as company } from "@/lib/data";
 import { KIND_LABELS } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
+import { filterKeyOf, vizProvenance } from "@/lib/provenance";
+import { SecondOpinionCard } from "@/components/provenance/ProvenancePanel";
 
 const VISUALS: { id: VisualKind; label: string; icon: typeof BarChart3 }[] = [
   { id: "column", label: "Column", icon: BarChart3 },
@@ -153,6 +155,7 @@ export function AnalysisWorkspace() {
   const [measureDraft, setMeasureDraft] = useState({ name: "", source: "", agg: "sum" as AggKind });
   const [page, setPage] = useState(0);
   const [formatTab, setFormatTab] = useState<"values" | "format">("values");
+  const [opinionOpen, setOpinionOpen] = useState(false);
 
   const fileKey = `${table.filename}:${table.headers.join("|")}`;
   useEffect(() => {
@@ -167,6 +170,18 @@ export function AnalysisWorkspace() {
 
   const spec = sheets[active] ?? sheets[0] ?? defaultSheet(fields, dataset);
   const viz = useMemo(() => buildViz(table.rows, spec, custom), [table.rows, spec, custom]);
+  const provenance = useMemo(
+    () =>
+      vizProvenance(
+        dataTable.rows,
+        table.rows,
+        spec,
+        custom,
+        filterKeyOf(filters),
+        table.headers,
+      ),
+    [dataTable.rows, table.rows, spec, custom, filters, table.headers],
+  );
   const exportRows = useMemo(() => applySheetFilter(table.rows, spec), [table.rows, spec]);
   const analysisExport = useMemo(() => {
     const view = vizToExportRows(viz);
@@ -306,6 +321,8 @@ export function AnalysisWorkspace() {
               rows={exportRows}
               metricHint={spec.measure ?? undefined}
               analysis={analysisExport}
+              sheetSpec={spec}
+              customMeasures={custom}
             />
           </div>
         </RibbonGroup>
@@ -466,9 +483,31 @@ export function AnalysisWorkspace() {
                     className="mb-2 h-16 w-full rounded-sm border border-border p-2 text-xs"
                   />
                 ) : null}
-                <div className="h-[calc(100%-2rem)] min-h-[280px] rounded-sm border border-border bg-[#fafafa] p-2">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpinionOpen((value) => !value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      setOpinionOpen((value) => !value);
+                    }
+                  }}
+                  className={`h-[calc(100%-2rem)] min-h-[220px] w-full rounded-sm border bg-[#fafafa] p-2 text-left ${
+                    opinionOpen ? "border-navy" : "border-border"
+                  }`}
+                >
                   <WorkspaceChart visual={spec.visual} viz={viz} showLabels={spec.showLabels} />
                 </div>
+                <p className="mt-1 text-[11px] text-muted">
+                  {provenance
+                    ? `${provenance.sourceRowCount.toLocaleString("en-US")} source · ${provenance.usedRowCount.toLocaleString("en-US")} used · click the visual for a second opinion`
+                    : "Click the visual for a second opinion."}
+                </p>
+                {opinionOpen ? (
+                  <div className="mt-2 max-h-56 overflow-auto">
+                    <SecondOpinionCard provenance={provenance} spec={spec} custom={custom} />
+                  </div>
+                ) : null}
               </div>
             </section>
 

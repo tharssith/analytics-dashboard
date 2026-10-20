@@ -7,9 +7,13 @@ import type { GenericPoint } from "@/lib/dataset";
 export function GenericTrendChart({
   title,
   points,
+  selected = false,
+  onInspect,
 }: {
   title: string;
   points: GenericPoint[];
+  selected?: boolean;
+  onInspect?: () => void;
 }) {
   if (points.length < 2) {
     return (
@@ -19,8 +23,19 @@ export function GenericTrendChart({
     );
   }
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onInspect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onInspect?.();
+      }}
+      className={`w-full rounded-lg border bg-card p-5 text-left ${
+        selected ? "border-navy" : "border-border"
+      }`}
+    >
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <p className="mt-1 text-[11px] text-muted">Click for a second opinion on this trend.</p>
       <div className="mt-4 h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -39,9 +54,13 @@ export function GenericTrendChart({
 export function GenericBreakdownChart({
   title,
   points,
+  selected = false,
+  onInspect,
 }: {
   title: string;
   points: GenericPoint[];
+  selected?: boolean;
+  onInspect?: () => void;
 }) {
   if (points.length === 0) {
     return (
@@ -51,8 +70,19 @@ export function GenericBreakdownChart({
     );
   }
   return (
-    <Card className="p-5">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onInspect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onInspect?.();
+      }}
+      className={`w-full rounded-lg border bg-card p-5 text-left ${
+        selected ? "border-navy" : "border-border"
+      }`}
+    >
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <p className="mt-1 text-[11px] text-muted">Click for a second opinion on this breakdown.</p>
       <div className="mt-4 h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={points} layout="vertical" margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
@@ -64,6 +94,6 @@ export function GenericBreakdownChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </Card>
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recheckClaims } from "@/lib/claims-store";
 import { getStoredDataset, replaceStoredDataset } from "@/lib/dataset-store";
 import { isDatasetKind, type StoredDataset } from "@/lib/dataset";
 import type { RawCsvRow } from "@/lib/csv";
@@ -54,5 +55,9 @@ export async function POST(request: Request) {
   if (result.error || !result.dataset) {
     return NextResponse.json({ error: result.error ?? "Save failed." }, { status: 500 });
   }
-  return NextResponse.json({ dataset: result.dataset });
+  const checked = await recheckClaims();
+  return NextResponse.json({
+    dataset: result.dataset,
+    claimChecks: checked.checks,
+  });
 }

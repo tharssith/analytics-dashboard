@@ -8,6 +8,8 @@ import {
   type StoredDataset,
 } from "@/lib/dataset";
 import { aggregateByMonth } from "@/lib/data";
+import type { DatasetClaim } from "@/lib/claims";
+import type { ProvenanceResult } from "@/lib/provenance";
 import type { HrRecord } from "@/lib/types";
 
 export type Direction = "up" | "down" | "flat";
@@ -72,6 +74,17 @@ export type ExportModel = {
   previewRows: RawCsvRow[];
   allRows: RawCsvRow[];
   analysis?: AnalysisExportSlice;
+  brief?: DecisionBrief;
+};
+
+export type DecisionBrief = {
+  claimStatement: string;
+  claimStatus: "holds" | "broken" | "unsaved";
+  sourceRowCount: number;
+  usedRowCount: number;
+  swingRows: { label: string; hint: string }[];
+  excludeNarrative: string;
+  action: string;
 };
 
 export type AnalysisExportSlice = {
@@ -272,6 +285,8 @@ export function buildExportModel(input: {
   categoryLabel: string;
   metricHint?: string;
   analysis?: AnalysisExportSlice;
+  provenance?: ProvenanceResult | null;
+  claim?: DatasetClaim | null;
 }): ExportModel {
   const dataset = input.dataset;
   const kind: DatasetKind = dataset?.kind ?? (input.isHr ? "hr" : "generic");
@@ -422,6 +437,35 @@ export function buildExportModel(input: {
     previewRows: rows.slice(0, PREVIEW_ROWS),
     allRows: rows.slice(0, EXCEL_ROW_CAP),
     analysis: input.analysis,
+    brief: buildDecisionBrief(insight, input.provenance ?? null, input.claim ?? null),
+  };
+}
+
+export function buildDecisionBrief(
+  insight: ExportInsight,
+  provenance: ProvenanceResult | null,
+  claim: DatasetClaim | null,
+): DecisionBrief {
+  const claimStatus: DecisionBrief["claimStatus"] = !claim
+    ? "unsaved"
+    : claim.reverseStory === (provenance?.reverseStory ?? claim.reverseStory) &&
+        (!provenance || Math.abs(provenance.value - claim.value) / Math.max(1, Math.abs(claim.value)) < 0.2)
+      ? "holds"
+      : "broken";
+  const action =
+    provenance?.reverseStory
+      ? "Check the swing rows before acting. The headline reverses if those rows are wrong."
+      : "The headline holds without the swing rows. Move on the forecast, not on a one-row spike.";
+  return {
+    claimStatement: claim?.statement ?? provenance?.narrative ?? insight.prediction,
+    claimStatus,
+    sourceRowCount: provenance?.sourceRowCount ?? 0,
+    usedRowCount: provenance?.usedRowCount ?? 0,
+    swingRows: (provenance?.swingRows ?? []).map((row) => ({ label: row.label, hint: row.hint })),
+    excludeNarrative:
+      provenance?.narrative ??
+      "No provenance yet — click a KPI or chart in Cairn to pin the rows behind this number.",
+    action,
   };
 }
 

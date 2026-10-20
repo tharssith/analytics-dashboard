@@ -57,6 +57,18 @@ async function ensureSchema(client: Sql) {
       updated_at timestamptz not null default now()
     )
   `;
+  await client`
+    create table if not exists public.dataset_claims (
+      id uuid primary key default gen_random_uuid(),
+      user_id text not null,
+      created_at timestamptz not null default now(),
+      payload jsonb not null
+    )
+  `;
+  await client`
+    create index if not exists dataset_claims_user_idx
+      on public.dataset_claims (user_id, created_at desc)
+  `;
 }
 
 export async function getSql(): Promise<Sql> {
