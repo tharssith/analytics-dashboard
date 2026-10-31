@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { auth } from "@/lib/auth/server";
@@ -27,6 +28,12 @@ export default async function LoginPage({
 
   return (
     <main className="flex h-screen flex-col items-center justify-center overflow-hidden bg-background px-6">
+      <Link
+        href="/"
+        className="mb-8 text-[11px] font-medium uppercase tracking-[0.18em] text-muted hover:text-navy"
+      >
+        ← Home
+      </Link>
       <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground">
         Cairn
       </h1>

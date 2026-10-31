@@ -1,7 +1,5 @@
-import { redirect } from "next/navigation";
-
-export const dynamic = "force-dynamic";
+import { HomeLanding } from "@/components/home/HomeLanding";
 
 export default function HomePage() {
-  redirect("/login");
+  return <HomeLanding />;
 }
