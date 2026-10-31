@@ -35,7 +35,7 @@ export function HomeCursorField() {
       trailY += (targetY - trailY) * 0.06;
 
       const speed = Math.min(Math.hypot(targetX - x, targetY - y) / 28, 1);
-      const bloom = 420 + speed * 180;
+      const bloom = 170 + speed * 50;
 
       field.style.setProperty("--spot-x", `${x.toFixed(1)}px`);
       field.style.setProperty("--spot-y", `${y.toFixed(1)}px`);

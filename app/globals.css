@@ -46,28 +46,28 @@ body {
   --spot-y: 22vh;
   --trail-x: 48vw;
   --trail-y: 18vh;
-  --bloom: 420px;
+  --bloom: 180px;
 }
 
 .home-cursor-spot {
   background:
     radial-gradient(
       var(--bloom) circle at var(--spot-x) var(--spot-y),
-      rgba(148, 180, 230, 0.2),
-      transparent 58%
+      rgba(70, 102, 148, 0.12),
+      transparent 62%
     ),
     radial-gradient(
-      760px circle at var(--trail-x) var(--trail-y),
-      rgba(27, 54, 93, 0.58),
-      transparent 64%
+      420px circle at var(--trail-x) var(--trail-y),
+      rgba(27, 54, 93, 0.28),
+      transparent 68%
     );
 }
 
 .home-cursor-core {
   background: radial-gradient(
-    170px circle at var(--spot-x) var(--spot-y),
-    rgba(210, 228, 255, 0.16),
-    transparent 72%
+    72px circle at var(--spot-x) var(--spot-y),
+    rgba(96, 128, 168, 0.08),
+    transparent 78%
   );
 }
 
@@ -84,16 +84,16 @@ body {
 }
 
 .home-cursor-grid-hot {
-  opacity: 0.42;
+  opacity: 0.22;
   mask-image: radial-gradient(
-    300px circle at var(--spot-x) var(--spot-y),
-    #000 12%,
-    transparent 72%
+    140px circle at var(--spot-x) var(--spot-y),
+    #000 10%,
+    transparent 74%
   );
   -webkit-mask-image: radial-gradient(
-    300px circle at var(--spot-x) var(--spot-y),
-    #000 12%,
-    transparent 72%
+    140px circle at var(--spot-x) var(--spot-y),
+    #000 10%,
+    transparent 74%
   );
 }
 
