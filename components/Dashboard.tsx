@@ -90,6 +90,9 @@ function DashboardBody({ qaConfigured }: { qaConfigured: boolean }) {
                 } · AI matched file name to ${KIND_LABELS[dataset.typeFromName]} and columns to ${KIND_LABELS[dataset.typeFromHeaders]}`
               : `HQ ${company.company.hq} · Monitor, diagnose, and forecast any business dataset`}
           </p>
+          <p className="mt-1 text-xs text-muted">
+            Saved to your account. Log out and it will still be here when you log back in.
+          </p>
         </header>
 
         <div className="mb-5">
