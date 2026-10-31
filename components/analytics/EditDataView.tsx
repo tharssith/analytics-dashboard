@@ -6,12 +6,15 @@ import { SpreadsheetEditor } from "@/components/upload/SpreadsheetEditor";
 import {
   REQUIRED_HEADERS,
   applyColumnMapping,
+  emptyMapping,
   mappingFromExactHeaders,
   recordsToRawRows,
   type RawCsvRow,
 } from "@/lib/csv";
 import { inferRoles } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
+import { registerFlusher } from "@/lib/persist-queue";
+import { persistUploadDraft } from "@/lib/upload-draft";
 import {
   inspectGenericRows,
   inspectRows,
@@ -34,7 +37,11 @@ export function EditDataView() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [autoSaved, setAutoSaved] = useState(false);
   const initialized = useRef(false);
+  const rowsRef = useRef<RawCsvRow[]>([]);
+  const headersRef = useRef<string[]>([]);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -52,58 +59,85 @@ export function EditDataView() {
     setReady(true);
   }, [dataset, isHrDashboard, loading, sourceRecords]);
 
-  async function save() {
-    setSaveError(null);
+  rowsRef.current = rows;
+  headersRef.current = headers;
+
+  async function persistCurrent(silent: boolean) {
+    const nextRows = rowsRef.current;
+    const nextHeaders = headersRef.current;
     if (!isHrDashboard && dataset) {
-      const issues = inspectGenericRows(rows, dataset.timeField);
-      if (issues.length > 0) {
-        setSaveError(
-          `${issues.length} cell${issues.length === 1 ? "" : "s"} still fail validation. Fix the highlighted cells before saving.`,
-        );
-        return;
-      }
-      const roles = inferRoles(headers, rows);
-      setBusy(true);
+      await persistUploadDraft({
+        fileName: dataset.filename,
+        headers: nextHeaders,
+        rawRows: nextRows,
+        mapping: emptyMapping(),
+        mode: "manual",
+        audit: [],
+        flaggedIds: [],
+        kind: "generic",
+        profile: dataset,
+        sourceDataRows: nextRows.length,
+      });
+      const issues = inspectGenericRows(nextRows, dataset.timeField);
+      if (issues.length > 0) return false;
+      const roles = inferRoles(nextHeaders, nextRows);
       const ok = await replaceDataset({
         ...dataset,
-        headers,
-        rows,
+        headers: nextHeaders,
+        rows: nextRows,
         ...roles,
       });
-      setBusy(false);
-      if (!ok) {
-        setSaveError("Could not save dataset.");
-        return;
-      }
-      router.push("/analytics");
-      return;
+      if (ok) setAutoSaved(true);
+      else if (!silent) setSaveError("Could not save dataset.");
+      return ok;
     }
-
-    const mapping = mappingFromExactHeaders(headers);
-    const mapped = mappedRowsFromRaw(applyColumnMapping(rows, mapping));
+    const mapping = mappingFromExactHeaders(nextHeaders);
+    await persistUploadDraft({
+      fileName: dataset?.filename ?? "Workforce data",
+      headers: nextHeaders,
+      rawRows: nextRows,
+      mapping,
+      mode: "manual",
+      audit: [],
+      flaggedIds: [],
+      kind: "hr",
+      sourceDataRows: nextRows.length,
+    });
+    const mapped = mappedRowsFromRaw(applyColumnMapping(nextRows, mapping));
     const issues = inspectRows(mapped);
-    if (issues.length > 0) {
-      setSaveError(
-        `${issues.length} cell${issues.length === 1 ? "" : "s"} still fail validation. Fix the highlighted cells before saving.`,
-      );
-      return;
-    }
+    if (issues.length > 0) return false;
     const converted = rowsToRecords(mapped);
-    if (converted.errors.length > 0) {
-      setSaveError(converted.errors[0] ?? "Some rows still fail validation.");
-      return;
+    if (converted.errors.length > 0 || converted.records.length !== mapped.length) {
+      return false;
     }
-    if (converted.records.length !== mapped.length) {
-      setSaveError(
-        `${mapped.length - converted.records.length} rows were skipped due to errors. Fix the highlighted cells before saving.`,
-      );
-      return;
-    }
-    setBusy(true);
     const ok = await replaceSourceRecords(converted.records);
+    if (ok) setAutoSaved(true);
+    else if (!silent) setSaveError("Could not save records.");
+    return ok;
+  }
+
+  useEffect(() => {
+    return registerFlusher(async () => {
+      await persistCurrent(true);
+    });
+  });
+
+  function queueAutoSave() {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void persistCurrent(true);
+    }, 900);
+  }
+
+  async function save() {
+    setSaveError(null);
+    setBusy(true);
+    const ok = await persistCurrent(false);
     setBusy(false);
     if (!ok) {
-      setSaveError("Could not save records.");
+      if (!saveError) {
+        setSaveError("Fix highlighted cells before saving, or just log out — the draft is already kept.");
+      }
       return;
     }
     router.push("/analytics");
@@ -123,12 +157,16 @@ export function EditDataView() {
       timeField={isHrDashboard ? null : dataset?.timeField ?? null}
       busy={busy}
       saveError={saveError}
-      saveLabel="Save"
+      saveLabel={autoSaved ? "Saved" : "Save"}
       onRowsChange={(next) => {
         setRows(next);
         setSaveError(null);
+        queueAutoSave();
       }}
-      onHeadersChange={setHeaders}
+      onHeadersChange={(next) => {
+        setHeaders(next);
+        queueAutoSave();
+      }}
       onCancel={() => router.push("/analytics")}
       onSave={() => void save()}
     />

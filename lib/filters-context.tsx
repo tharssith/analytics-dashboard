@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -28,8 +29,13 @@ import {
   uniqueGenericMonths,
   type StoredDataset,
 } from "./dataset";
+import { registerFlusher } from "./persist-queue";
 
-const DATASET_KEY = "northstar-active-dataset";
+const LEGACY_DATASET_KEY = "northstar-active-dataset";
+
+function datasetKey(userId: string) {
+  return `cairn-dataset:${userId}`;
+}
 
 export type KpiStatusChange = {
   label: string;
@@ -54,6 +60,7 @@ type FiltersContextValue = {
   resetSourceRecords: () => Promise<boolean>;
   replaceSourceRecords: (next: HrRecord[]) => Promise<boolean>;
   replaceDataset: (next: StoredDataset) => Promise<boolean>;
+  deleteSavedData: () => Promise<boolean>;
   dataset: StoredDataset | null;
   isHrDashboard: boolean;
   categoryFieldLabel: string;
@@ -68,10 +75,10 @@ type FiltersContextValue = {
   departmentLabel: string;
 };
 
-function readLocalDataset(): StoredDataset | null {
-  if (typeof window === "undefined") return null;
+function readLocalDataset(userId: string): StoredDataset | null {
+  if (typeof window === "undefined" || !userId) return null;
   try {
-    const raw = window.localStorage.getItem(DATASET_KEY);
+    const raw = window.localStorage.getItem(datasetKey(userId));
     if (!raw) return null;
     return JSON.parse(raw) as StoredDataset;
   } catch {
@@ -79,13 +86,14 @@ function readLocalDataset(): StoredDataset | null {
   }
 }
 
-function writeLocalDataset(dataset: StoredDataset | null) {
-  if (typeof window === "undefined") return;
+function writeLocalDataset(userId: string, dataset: StoredDataset | null) {
+  if (typeof window === "undefined" || !userId) return;
+  window.localStorage.removeItem(LEGACY_DATASET_KEY);
   if (!dataset) {
-    window.localStorage.removeItem(DATASET_KEY);
+    window.localStorage.removeItem(datasetKey(userId));
     return;
   }
-  window.localStorage.setItem(DATASET_KEY, JSON.stringify(dataset));
+  window.localStorage.setItem(datasetKey(userId), JSON.stringify(dataset));
 }
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
@@ -129,11 +137,13 @@ async function readJson(response: Response): Promise<{
 
 export function FiltersProvider({
   children,
+  userId,
   initialRecords,
   initialError = null,
   initialDataset = null,
 }: {
   children: ReactNode;
+  userId: string;
   initialRecords: HrRecord[];
   initialError?: string | null;
   initialDataset?: StoredDataset | null;
@@ -149,20 +159,29 @@ export function FiltersProvider({
     [],
   );
   const [claimAlerts, setClaimAlerts] = useState<ClaimAlert[]>([]);
+  const datasetRef = useRef<StoredDataset | null>(initialDataset);
+  datasetRef.current = dataset;
 
   useEffect(() => {
-    const local = readLocalDataset();
-    if (local && !initialDataset) setDataset(local);
+    writeLocalDataset(userId, initialDataset);
+    if (!initialDataset) {
+      const local = readLocalDataset(userId);
+      if (local) setDataset(local);
+    }
     void fetch("/api/dataset")
       .then((response) => response.json())
       .then((payload: { dataset?: StoredDataset | null }) => {
         if (payload.dataset) {
           setDataset(payload.dataset);
-          writeLocalDataset(payload.dataset);
+          writeLocalDataset(userId, payload.dataset);
+          return;
         }
+        if ((payload as { error?: string }).error) return;
+        setDataset(null);
+        writeLocalDataset(userId, null);
       })
       .catch(() => undefined);
-  }, [initialDataset]);
+  }, [initialDataset, userId]);
 
   useEffect(() => {
     const isHr = !dataset || dataset.kind === "hr";
@@ -301,38 +320,74 @@ export function FiltersProvider({
       setSourceRecords(cloneRecords(payload.records));
       const hrDataset: StoredDataset = {
         ...DEFAULT_HR_PROFILE,
+        filename: "Uploaded workforce file",
         rows: [],
       };
       setDataset(hrDataset);
-      writeLocalDataset(hrDataset);
+      writeLocalDataset(userId, hrDataset);
+      await fetch("/api/dataset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataset: hrDataset }),
+        keepalive: true,
+      }).catch(() => undefined);
       if (payload.claimChecks && payload.claimChecks.length > 0) {
         setClaimAlerts(checksToAlerts(payload.claimChecks));
       }
       return true;
     },
-    [noteStatusShifts, sourceRecords],
+    [noteStatusShifts, sourceRecords, userId],
   );
 
   const replaceDataset = useCallback(async (next: StoredDataset) => {
-    writeLocalDataset(next);
+    writeLocalDataset(userId, next);
     setDataset(next);
     const response = await fetch("/api/dataset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dataset: next }),
+      keepalive: true,
     });
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
       claimChecks?: unknown;
     };
     if (!response.ok) {
-      if (payload.error && payload.error !== "Could not save dataset.") {
-        setDataError(payload.error);
-      }
+      setDataError(payload.error ?? "Could not save dataset.");
+      return false;
     }
     const checks = asClaimChecks(payload.claimChecks);
     if (checks.length > 0) setClaimAlerts(checksToAlerts(checks));
     return true;
+  }, [userId]);
+
+  const deleteSavedData = useCallback(async () => {
+    const response = await fetch("/api/dataset", { method: "DELETE" });
+    const payload = await readJson(response);
+    if (!response.ok) {
+      setDataError(payload.error ?? "Could not delete saved data.");
+      return false;
+    }
+    writeLocalDataset(userId, null);
+    setDataset(null);
+    if (payload.records) {
+      setSourceRecords(cloneRecords(payload.records));
+    }
+    setClaimAlerts([]);
+    return true;
+  }, [userId]);
+
+  useEffect(() => {
+    return registerFlusher(async () => {
+      const current = datasetRef.current;
+      if (!current) return;
+      await fetch("/api/dataset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataset: current }),
+        keepalive: true,
+      });
+    });
   }, []);
 
   const saveClaim = useCallback(async (claim: DatasetClaim) => {
@@ -396,6 +451,7 @@ export function FiltersProvider({
       resetSourceRecords,
       replaceSourceRecords,
       replaceDataset,
+      deleteSavedData,
       dataset,
       isHrDashboard,
       categoryFieldLabel: dataset?.categoryField || "Department",
@@ -422,6 +478,7 @@ export function FiltersProvider({
     loading,
     persistRecord,
     replaceDataset,
+    deleteSavedData,
     replaceSourceRecords,
     resetSourceRecords,
     setDepartment,

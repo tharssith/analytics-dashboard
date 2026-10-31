@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SpreadsheetEditor } from "@/components/upload/SpreadsheetEditor";
@@ -13,10 +13,11 @@ import {
 } from "@/lib/csv";
 import { uniqueDepartments } from "@/lib/data";
 import { useFilters } from "@/lib/filters-context";
+import { registerFlusher } from "@/lib/persist-queue";
 import {
-  clearUploadDraft,
-  readUploadDraft,
-  writeUploadDraft,
+  discardUploadDraft,
+  loadSavedUploadDraft,
+  persistUploadDraft,
   type UploadDraft,
 } from "@/lib/upload-draft";
 import {
@@ -35,8 +36,19 @@ export function UploadEditorView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedLabel, setSavedLabel] = useState<string | null>(null);
 
+  const draftRef = useRef<UploadDraft | null>(null);
+
   useEffect(() => {
-    setDraft(readUploadDraft());
+    void loadSavedUploadDraft().then((loaded) => {
+      setDraft(loaded);
+      draftRef.current = loaded;
+    });
+  }, []);
+
+  useEffect(() => {
+    return registerFlusher(async () => {
+      if (draftRef.current) await persistUploadDraft(draftRef.current);
+    });
   }, []);
 
   function updateRows(next: RawCsvRow[]) {
@@ -53,7 +65,8 @@ export function UploadEditorView() {
         rawRows: next,
         flaggedIds: [...flagged],
       };
-      writeUploadDraft(updated);
+      draftRef.current = updated;
+      void persistUploadDraft(updated);
       return updated;
     });
     setSaveError(null);
@@ -63,7 +76,8 @@ export function UploadEditorView() {
     setDraft((current) => {
       if (!current) return current;
       const updated = { ...current, headers: next };
-      writeUploadDraft(updated);
+      draftRef.current = updated;
+      void persistUploadDraft(updated);
       return updated;
     });
   }
@@ -89,7 +103,8 @@ export function UploadEditorView() {
           const flagged = new Set(current.flaggedIds);
           for (const id of failing) flagged.add(id);
           const updated = { ...current, flaggedIds: [...flagged] };
-          writeUploadDraft(updated);
+          draftRef.current = updated;
+          void persistUploadDraft(updated);
           return updated;
         });
         setSaveError(
@@ -108,7 +123,7 @@ export function UploadEditorView() {
         setSaveError("Could not save this dataset.");
         return;
       }
-      clearUploadDraft();
+      await discardUploadDraft();
       setSavedLabel(
         `Loaded ${draft.rawRows.length} of ${sourceCount} source rows from ${draft.fileName}.`,
       );
@@ -123,7 +138,8 @@ export function UploadEditorView() {
         const flagged = new Set(current.flaggedIds);
         for (const id of failing) flagged.add(id);
         const updated = { ...current, flaggedIds: [...flagged] };
-        writeUploadDraft(updated);
+        draftRef.current = updated;
+        void persistUploadDraft(updated);
         return updated;
       });
       setSaveError(
@@ -151,7 +167,7 @@ export function UploadEditorView() {
       return;
     }
     const depts = uniqueDepartments(converted.records);
-    clearUploadDraft();
+    await discardUploadDraft();
     setSavedLabel(
       `Loaded ${converted.records.length} of ${sourceCount} source rows for ${depts.length} department${
         depts.length === 1 ? "" : "s"
@@ -203,7 +219,7 @@ export function UploadEditorView() {
       onRowsChange={updateRows}
       onHeadersChange={updateHeaders}
       onCancel={() => {
-        clearUploadDraft();
+        void persistUploadDraft(draft);
         router.push("/upload");
       }}
       onSave={() => void save()}

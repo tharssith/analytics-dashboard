@@ -69,6 +69,13 @@ async function ensureSchema(client: Sql) {
     create index if not exists dataset_claims_user_idx
       on public.dataset_claims (user_id, created_at desc)
   `;
+  await client`
+    create table if not exists public.user_upload_drafts (
+      user_id text primary key,
+      payload jsonb not null,
+      updated_at timestamptz not null default now()
+    )
+  `;
 }
 
 export async function getSql(): Promise<Sql> {

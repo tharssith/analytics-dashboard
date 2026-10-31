@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FilterBar, toolbarButtonClass } from "@/components/filters/FilterBar";
@@ -33,7 +33,13 @@ import {
   type DatasetProfile,
 } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
-import { clearUploadDraft, writeUploadDraft } from "@/lib/upload-draft";
+import {
+  clearUploadDraft,
+  discardUploadDraft,
+  loadSavedUploadDraft,
+  persistUploadDraft,
+  type UploadDraft,
+} from "@/lib/upload-draft";
 import {
   aiUsesHrMapping,
   shouldShowChoice,
@@ -67,7 +73,7 @@ type Stage = UploadStage;
 
 export function UploadDataView() {
   const router = useRouter();
-  const { replaceSourceRecords, replaceDataset } = useFilters();
+  const { replaceSourceRecords, replaceDataset, deleteSavedData, dataset } = useFilters();
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<RawCsvRow[]>([]);
@@ -91,6 +97,14 @@ export function UploadDataView() {
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
   const [typeLoading, setTypeLoading] = useState(false);
   const mapRequest = useRef(0);
+  const [savedDraft, setSavedDraft] = useState<UploadDraft | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    void loadSavedUploadDraft().then((draft) => {
+      if (draft) setSavedDraft(draft);
+    });
+  }, []);
 
   function resetWorking() {
     setMode(null);
@@ -330,6 +344,8 @@ export function UploadDataView() {
       setSaveError("Could not save this dataset.");
       return;
     }
+    await discardUploadDraft();
+    setSavedDraft(null);
     setSavedLabel(`Loaded ${rawRows.length} rows from ${fileName}.`);
     setStage("saved");
   }
@@ -341,7 +357,7 @@ export function UploadDataView() {
     raw = rawRows,
     kind: "hr" | "generic" = "hr",
   ) {
-    writeUploadDraft({
+    void persistUploadDraft({
       fileName: fileName ?? "File",
       headers,
       rawRows:
@@ -566,6 +582,8 @@ export function UploadDataView() {
       goToEditor(audit, failingRowIds(inspectRows(rows)), rows);
       return false;
     }
+    await discardUploadDraft();
+    setSavedDraft(null);
     setSavedLabel(
       `Loaded ${converted.records.length} of ${sourceDataRows} source rows for ${depts.length} department${
         depts.length === 1 ? "" : "s"
@@ -590,8 +608,8 @@ export function UploadDataView() {
           Cairn
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Upload data — replace your saved dataset with a CSV or Excel file.
-          Choose AI-assisted or fully manual preparation.
+          Upload data — it is saved to your account automatically. Log out and
+          back in and the same file is still there until you delete it.
         </p>
       </header>
 
@@ -602,6 +620,55 @@ export function UploadDataView() {
           actionIcon="back"
         />
       </div>
+
+      {dataset?.filename ? (
+        <Card className="mb-5 max-w-xl p-5">
+          <p className="text-sm text-foreground">
+            Saved for this account: <span className="font-medium">{dataset.filename}</span>
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            This stays after logout. Only delete if you want to start over with the demo file.
+          </p>
+          <button
+            type="button"
+            disabled={deleting}
+            className={`${toolbarButtonClass} mt-3`}
+            onClick={() => {
+              if (!window.confirm("Delete your saved file from this account?")) return;
+              setDeleting(true);
+              void deleteSavedData().finally(() => setDeleting(false));
+            }}
+          >
+            {deleting ? "Deleting…" : "Delete saved data"}
+          </button>
+        </Card>
+      ) : null}
+
+      {savedDraft ? (
+        <Card className="mb-5 max-w-xl p-5">
+          <p className="text-sm text-foreground">
+            Unfinished spreadsheet: <span className="font-medium">{savedDraft.fileName}</span>
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Kept from your last session. Continue editing or discard it.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/upload/edit" className={toolbarButtonClass}>
+              Continue
+            </Link>
+            <button
+              type="button"
+              className={toolbarButtonClass}
+              onClick={() => {
+                void discardUploadDraft();
+                setSavedDraft(null);
+              }}
+            >
+              Discard draft
+            </button>
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="mb-5 max-w-xl p-5">
         <label className="flex cursor-pointer flex-col gap-2">

@@ -151,6 +151,18 @@ export async function replaceStoredDataset(
   }
 }
 
+export async function clearStoredDataset(): Promise<{ error: string | null }> {
+  try {
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { error: authError };
+    const sql = await getSql();
+    await sql`delete from public.user_datasets where user_id = ${userId}`;
+    return { error: null };
+  } catch (error) {
+    return { error: publicError(error) };
+  }
+}
+
 export function hrProfile(): DatasetProfile {
   return { ...DEFAULT_HR_PROFILE };
 }

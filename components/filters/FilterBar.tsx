@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BarChart3, LogOut, X } from "lucide-react";
+import { ArrowLeft, BarChart3, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { logoutAction } from "@/app/login/actions";
+import { LogoutButton } from "@/components/filters/LogoutButton";
 import { dataset as companyDataset, uniqueMonths } from "@/lib/data";
 import { uniqueGenericMonths, KIND_LABELS } from "@/lib/dataset";
 import { useFilters } from "@/lib/filters-context";
@@ -132,12 +132,7 @@ export function FilterBar({
           {actionLabel}
         </Link>
         {extraActions}
-        <form action={logoutAction}>
-          <button type="submit" className={toolbarButtonClass}>
-            <LogOut size={16} className="text-navy" />
-            Log Out
-          </button>
-        </form>
+        <LogoutButton />
         <p className="text-xs text-muted">
           {dataset?.filename
             ? `${KIND_LABELS[dataset.kind]} · ${dataset.filename}`

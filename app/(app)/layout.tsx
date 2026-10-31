@@ -39,6 +39,7 @@ async function RecordsShell({ children }: { children: React.ReactNode }) {
   const stored = await getStoredDataset();
   return (
     <FiltersProvider
+      userId={session.user.id}
       initialRecords={records}
       initialError={error}
       initialDataset={stored.dataset}

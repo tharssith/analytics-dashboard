@@ -50,6 +50,18 @@ export async function listClaims(): Promise<{ claims: DatasetClaim[]; error: str
   }
 }
 
+export async function clearClaims(): Promise<{ error: string | null }> {
+  try {
+    const { userId, error: authError } = await requireUserId();
+    if (!userId) return { error: authError };
+    const sql = await getSql();
+    await sql`delete from public.dataset_claims where user_id = ${userId}`;
+    return { error: null };
+  } catch (error) {
+    return { error: publicError(error) };
+  }
+}
+
 export async function saveClaim(
   claim: DatasetClaim,
 ): Promise<{ claim: DatasetClaim | null; error: string | null }> {

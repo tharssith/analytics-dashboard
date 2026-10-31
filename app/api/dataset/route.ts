@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { recheckClaims } from "@/lib/claims-store";
-import { getStoredDataset, replaceStoredDataset } from "@/lib/dataset-store";
+import { clearClaims, recheckClaims } from "@/lib/claims-store";
+import { clearSavedDraft } from "@/lib/draft-store";
+import { clearStoredDataset, getStoredDataset, replaceStoredDataset } from "@/lib/dataset-store";
+import { resetHrRecords } from "@/lib/hr-store";
 import { isDatasetKind, type StoredDataset } from "@/lib/dataset";
 import type { RawCsvRow } from "@/lib/csv";
 
@@ -60,4 +62,21 @@ export async function POST(request: Request) {
     dataset: result.dataset,
     claimChecks: checked.checks,
   });
+}
+
+export async function DELETE() {
+  const cleared = await clearStoredDataset();
+  if (cleared.error === "Sign in required.") {
+    return NextResponse.json({ error: cleared.error }, { status: 401 });
+  }
+  if (cleared.error) {
+    return NextResponse.json({ error: cleared.error }, { status: 500 });
+  }
+  await clearSavedDraft();
+  await clearClaims();
+  const seeded = await resetHrRecords();
+  if (seeded.error) {
+    return NextResponse.json({ error: seeded.error }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, records: seeded.records });
 }

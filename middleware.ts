@@ -11,6 +11,8 @@ const PROTECTED_PREFIXES = [
   "/api/fix-values",
   "/api/detect-dataset",
   "/api/dataset",
+  "/api/claims",
+  "/api/upload-draft",
 ];
 
 function isProtectedPath(pathname: string): boolean {
