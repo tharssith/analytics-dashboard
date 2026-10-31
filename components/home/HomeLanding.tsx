@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HomeCursorField } from "@/components/home/HomeCursorField";
 
 const USES = [
   {
@@ -51,8 +52,7 @@ const SURFACES = [
 export function HomeLanding() {
   return (
     <div className="min-h-full bg-[#08111f] text-slate-100">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(27,54,93,0.55),_transparent_42%),linear-gradient(to_bottom,#08111f,#0b1528_40%,#08111f)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-[0.14] [background-image:linear-gradient(rgba(148,163,184,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.16)_1px,transparent_1px)] [background-size:72px_72px]" />
+      <HomeCursorField />
 
       <div className="relative">
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">

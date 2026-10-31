@@ -40,3 +40,66 @@ body {
   color: var(--foreground);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
+
+.home-cursor-field {
+  --spot-x: 52vw;
+  --spot-y: 22vh;
+  --trail-x: 48vw;
+  --trail-y: 18vh;
+  --bloom: 420px;
+}
+
+.home-cursor-spot {
+  background:
+    radial-gradient(
+      var(--bloom) circle at var(--spot-x) var(--spot-y),
+      rgba(148, 180, 230, 0.2),
+      transparent 58%
+    ),
+    radial-gradient(
+      760px circle at var(--trail-x) var(--trail-y),
+      rgba(27, 54, 93, 0.58),
+      transparent 64%
+    );
+}
+
+.home-cursor-core {
+  background: radial-gradient(
+    170px circle at var(--spot-x) var(--spot-y),
+    rgba(210, 228, 255, 0.16),
+    transparent 72%
+  );
+}
+
+.home-cursor-grid,
+.home-cursor-grid-hot {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.16) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+.home-cursor-grid {
+  opacity: 0.12;
+}
+
+.home-cursor-grid-hot {
+  opacity: 0.42;
+  mask-image: radial-gradient(
+    300px circle at var(--spot-x) var(--spot-y),
+    #000 12%,
+    transparent 72%
+  );
+  -webkit-mask-image: radial-gradient(
+    300px circle at var(--spot-x) var(--spot-y),
+    #000 12%,
+    transparent 72%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-cursor-core,
+  .home-cursor-grid-hot {
+    opacity: 0;
+  }
+}
